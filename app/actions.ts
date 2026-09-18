@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, updateTag } from "next/cache";
+import { revalidatePath, revalidateTag, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSupabase, requireSupabase, type Supabase } from "./lib/supabase";
 import {
@@ -772,39 +772,27 @@ export async function deleteUpdate(formData: FormData): Promise<void> {
  * intention to keep watching. Somebody should not have to praise a project to
  * hear about it.
  */
-export async function toggleFollow(formData: FormData): Promise<void> {
-  const slug = text(formData, "slug");
-  const viewer = await currentViewer();
-  if (!viewer) return;
+export async function setProjectFollow(
+  projectId: number,
+  active: boolean,
+): Promise<void> {
+  const personId = await viewerId();
+  if (!personId || !validReactionInput(projectId, active)) throw new Error("Invalid reaction");
 
   const supabase = await requireSupabase();
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (!project) return;
-
-  const { data: existing } = await supabase
-    .from("follows")
-    .select("user_id")
-    .eq("project_id", project.id)
-    .eq("user_id", viewer.id)
-    .maybeSingle();
-
-  const { error } = existing
-    ? await supabase
+  const { error } = active
+    ? await supabase.from("follows").upsert(
+        { project_id: projectId, user_id: personId },
+        { onConflict: "project_id,user_id", ignoreDuplicates: true },
+      )
+    : await supabase
         .from("follows")
         .delete()
-        .eq("project_id", project.id)
-        .eq("user_id", viewer.id)
-    : await supabase.from("follows").insert({ project_id: project.id, user_id: viewer.id });
+        .eq("project_id", projectId)
+        .eq("user_id", personId);
   if (error) throw new Error(error.message);
 
-  // Nothing tagged to retire: who follows what is read per visitor and never
-  // cached, so there is no shared copy of it to go stale.
-  revalidatePath(`/projects/${slug}`);
-  revalidatePath("/inbox");
+  revalidateTag(tags.projects, "max");
 }
 
 /* ------------------------------------------------------------------ *
@@ -974,39 +962,34 @@ export async function addComment(formData: FormData): Promise<void> {
   revalidatePath(`/projects/${slug}`);
 }
 
-export async function toggleBoost(formData: FormData): Promise<void> {
-  const slug = text(formData, "slug");
-  const viewer = await currentViewer();
-  if (!viewer) return;
+export async function setProjectBoost(
+  projectId: number,
+  active: boolean,
+): Promise<void> {
+  const personId = await viewerId();
+  if (!personId || !validReactionInput(projectId, active)) throw new Error("Invalid reaction");
 
   const supabase = await requireSupabase();
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (!project) return;
-
-  const { data: existing } = await supabase
-    .from("boosts")
-    .select("user_id")
-    .eq("project_id", project.id)
-    .eq("user_id", viewer.id)
-    .maybeSingle();
-
-  const { error } = existing
-    ? await supabase
+  const { error } = active
+    ? await supabase.from("boosts").upsert(
+        { project_id: projectId, user_id: personId },
+        { onConflict: "project_id,user_id", ignoreDuplicates: true },
+      )
+    : await supabase
         .from("boosts")
         .delete()
-        .eq("project_id", project.id)
-        .eq("user_id", viewer.id)
-    : await supabase.from("boosts").insert({ project_id: project.id, user_id: viewer.id });
+        .eq("project_id", projectId)
+        .eq("user_id", personId);
   if (error) throw new Error(error.message);
 
-  projectChanged(slug);
-  trailChanged(viewer.id, slug);
-  revalidatePath(`/projects/${slug}`);
-  revalidatePath("/");
+  revalidateTag(tags.projects, "max");
+  if (active) {
+    revalidateTag(tags.trail(personId), "max");
+  }
+}
+
+function validReactionInput(projectId: number, active: boolean): boolean {
+  return Number.isSafeInteger(projectId) && projectId > 0 && typeof active === "boolean";
 }
 
 /**

@@ -17,8 +17,6 @@ import {
   setSeatAccess,
   setStage,
   setTaskRole,
-  toggleBoost,
-  toggleFollow,
 } from "../../actions";
 import { signInPath } from "../../lib/urls";
 import { SubmitButton } from "../../components/submit-button";
@@ -38,6 +36,7 @@ import { RelativeTime } from "../../components/relative-time";
 import { MAXIMUM, domainOf, projectBlurb } from "../../lib/brief";
 import {
   getProject,
+  getProjectReactionCounts,
   hasBoosted,
   isFollowing,
   listProjects,
@@ -63,6 +62,7 @@ import {
 import { currentViewer } from "../../lib/session";
 import { ProjectScrollTop } from "../../components/project-scroll-top";
 import { ProjectLogo } from "../../components/project-logo";
+import { ProjectReactions } from "../../components/project-reactions";
 import { ProjectTabContent, ProjectTabSwitcher } from "../../components/project-tabs";
 import { isProjectTab, type ProjectTab } from "../../lib/project-tabs";
 import { isGitHubRepositoryUrl } from "../../lib/github";
@@ -131,7 +131,8 @@ export default async function ProjectPage({
   const access = accessOf(viewer?.id, project.owner.id, project.seats);
   const isOwner = access === "owner";
   const isManager = canManage(access);
-  const [boosted, following, history, proposals] = await Promise.all([
+  const [reactionCounts, boosted, following, history, proposals] = await Promise.all([
+    getProjectReactionCounts(project.id),
     viewer ? hasBoosted(project.id, viewer.id) : Promise.resolve(false),
     viewer ? isFollowing(project.id, viewer.id) : Promise.resolve(false),
     listProjectActivity(project.id, { slug: project.slug, viewer }),
@@ -142,10 +143,12 @@ export default async function ProjectPage({
         )
       : Promise.resolve([]),
   ]);
+  const { followerCount, boostCount } = reactionCounts ?? project;
   const returnTo =
     activeTab === "about"
       ? `/projects/${project.slug}`
       : `/projects/${project.slug}?tab=${activeTab}`;
+  const followersLabel = tx(locale, "orang mengikuti proyek ini.", "people follow this project.");
 
   const stageInput = toStageInput(project);
 
@@ -180,9 +183,6 @@ export default async function ProjectPage({
           {isOwner ? <Link className="edit-link" href={`/projects/${project.slug}/edit`}>{tx(locale, "Edit proyek", "Edit project")}</Link> : null}
         </div>
 
-        {/* Identity, then what it is, then who is behind it, then the two
-            things a visitor can do about it. Nothing measures the project
-            here — that is what the journey further down is for. */}
         <section className="project-hero">
           <div className="project-hero-copy">
             <div className="project-hero-top">
@@ -229,39 +229,37 @@ export default async function ProjectPage({
                 </span>
               </Link>
 
-              <div className="hero-actions">
-                {viewer ? (
-                  <form action={toggleFollow}>
-                    <input type="hidden" name="slug" value={project.slug} />
-                    <SubmitButton className={`follow ${following ? "is-on" : ""}`}>
-                      {following ? tx(locale, "Mengikuti", "Following") : tx(locale, "Ikuti proyek", "Follow project")}
-                    </SubmitButton>
-                  </form>
-                ) : (
-                  <Link className="follow" href={signInPath(returnTo)}>
-                    {tx(locale, "Ikuti proyek", "Follow project")}
-                  </Link>
-                )}
-
-                {/* Support stays, small and to the side: it is a nice signal,
-                    not the point of the page. */}
-                {viewer ? (
-                  <form action={toggleBoost}>
-                    <input type="hidden" name="slug" value={project.slug} />
-                    <SubmitButton className={`boost ${boosted ? "is-on" : ""}`}>
+              {viewer ? (
+                <ProjectReactions
+                  projectId={project.id}
+                  initialState={{ following, followerCount, boosted, boostCount }}
+                  labels={{
+                    follow: tx(locale, "Ikuti proyek", "Follow project"),
+                    following: tx(locale, "Mengikuti", "Following"),
+                    support: tx(locale, "dukungan", "support"),
+                    followers: followersLabel,
+                    error: tx(locale, "Belum tersimpan. Coba lagi.", "Could not save. Try again."),
+                  }}
+                />
+              ) : (
+                <div className="project-reactions">
+                  <div className="hero-actions">
+                    <Link className="follow" href={signInPath(returnTo)}>
+                      {tx(locale, "Ikuti proyek", "Follow project")}
+                    </Link>
+                    <Link className="boost" href={signInPath(returnTo)}>
                       <span aria-hidden="true">♡</span>
-                      <strong>{project.boostCount}</strong>
+                      <strong>{boostCount}</strong>
                       <span className="sr-only">{tx(locale, "dukungan", "support")}</span>
-                    </SubmitButton>
-                  </form>
-                ) : (
-                  <Link className="boost" href={signInPath(returnTo)}>
-                    <span aria-hidden="true">♡</span>
-                    <strong>{project.boostCount}</strong>
-                    <span className="sr-only">{tx(locale, "dukungan", "support")}</span>
-                  </Link>
-                )}
-              </div>
+                    </Link>
+                  </div>
+                  {followerCount > 0 ? (
+                    <p className="follower-count">
+                      {followerCount} {followersLabel}
+                    </p>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             {(project.liveUrl || project.docUrl || project.repoUrl) && (
@@ -926,12 +924,6 @@ export default async function ProjectPage({
                     })}
                   </div>
                 </form>
-              ) : null}
-
-              {project.followerCount > 0 ? (
-                <p className="follower-count">
-                  {tx(locale, `${project.followerCount} orang mengikuti proyek ini.`, `${project.followerCount} people follow this project.`)}
-                </p>
               ) : null}
             </section>
           </aside>

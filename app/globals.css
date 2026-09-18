@@ -782,8 +782,9 @@ a.seat-chip:hover { border-color: var(--ink); }
 .project-type-note strong { color: var(--ink); display: block; font-size: 12px; font-weight: 750;
   letter-spacing: .05em; margin-bottom: 3px; text-transform: uppercase; }
 .project-hero-meta { align-items: center; display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; margin-top: 22px; }
-/* Following is the invitation; support is a quiet second opinion beside it. */
 .hero-actions { align-items: center; display: flex; gap: 10px; }
+.project-reactions { text-align: right; }
+.reaction-error { color: #b23c14; font-size: 12px; margin-top: 6px; }
 .follow {
   background: var(--ink); border: 1px solid var(--ink); border-radius: 99px; color: var(--paper);
   display: inline-flex; font-family: inherit; font-size: 13px; font-weight: 700; padding: 12px 22px;

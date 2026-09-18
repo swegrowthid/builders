@@ -106,6 +106,8 @@ export type ProjectSummary = {
   doneTaskCount: number;
 };
 
+type ProjectReactionCounts = Pick<ProjectSummary, "followerCount" | "boostCount">;
+
 export type SeatView = {
   id: number;
   role: string;
@@ -1410,6 +1412,26 @@ export async function isFollowing(projectId: number, userId: string): Promise<bo
   }
 
   return Boolean(data);
+}
+
+export async function getProjectReactionCounts(
+  projectId: number,
+): Promise<ProjectReactionCounts | null> {
+  const supabase = getPublicSupabase();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("project_overview")
+    .select("follower_count,boost_count")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  return {
+    followerCount: Number(data.follower_count ?? 0),
+    boostCount: Number(data.boost_count),
+  };
 }
 
 /** An update, with enough of its project to read as a line in somebody's inbox. */

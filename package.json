@@ -22,7 +22,7 @@
     "lint": "eslint . --ignore-pattern .next",
     "test": "next build && node --test --experimental-strip-types --import ./tests/ts-imports.mjs \"tests/**/*.test.mjs\"",
     "db:seed": "node --experimental-strip-types scripts/generate-seed-sql.mjs",
-    "test:unit": "node --test --experimental-strip-types --import ./tests/ts-imports.mjs tests/brief.test.mjs tests/domain.test.mjs tests/feedback.test.mjs tests/github.test.mjs tests/link-metadata.test.mjs tests/next-steps.test.mjs tests/profile.test.mjs tests/project-types.test.mjs tests/resilient-fetch.test.mjs tests/urls.test.mjs"
+    "test:unit": "node --test --experimental-strip-types --import ./tests/ts-imports.mjs tests/brief.test.mjs tests/domain.test.mjs tests/feedback.test.mjs tests/github.test.mjs tests/link-metadata.test.mjs tests/next-steps.test.mjs tests/profile.test.mjs tests/project-reactions.test.mjs tests/project-types.test.mjs tests/resilient-fetch.test.mjs tests/urls.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.7.0",
