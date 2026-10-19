@@ -3670,6 +3670,7 @@ form button[aria-busy="true"]::after,
 .dx-head p { color: var(--dx-muted); font-size: 14px; margin: 6px 0 0; }
 
 .dx-layout { align-items: start; display: grid; gap: 40px; grid-template-columns: 232px minmax(0, 1fr); padding-top: 24px; }
+.dx-mtabs { display: none; }
 
 /* ---- facets */
 .dx-side { display: grid; gap: 26px; position: sticky; top: calc(var(--header-h) + 20px); }
@@ -3782,6 +3783,19 @@ form button[aria-busy="true"]::after,
   .dx-facet-label small { display: none; }
   /* Every chip toggles itself off, so "All" only takes room on a phone. */
   .dx-facet-all { display: none; }
+  .dx-facet-tracks { display: none; }
+  .dx-facet-tracks + .dx-facet { border-left: 0; padding-left: 0; }
+  .dx-mtabs {
+    background: var(--dx-soft); border-radius: 10px; display: grid; gap: 3px;
+    grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 3px;
+  }
+  .dx-mtabs a {
+    align-items: center; border-radius: 8px; color: var(--dx-muted); display: flex; font-size: 14px;
+    font-weight: 600; gap: 7px; justify-content: center; min-height: 40px; padding: 0 8px; white-space: nowrap;
+  }
+  .dx-mtabs a span { color: var(--dx-faint); font-family: var(--font-geist-mono), monospace; font-size: 12px; font-weight: 500; }
+  .dx-mtabs a.is-active { background: #fff; box-shadow: 0 1px 3px rgba(9, 9, 11, .12); color: var(--dx-ink); }
+  .dx-mtabs a.is-active span { color: var(--dx-ink); }
 }
 @media (max-width: 640px) {
   .dx-page { padding-top: 22px; }

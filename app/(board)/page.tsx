@@ -164,8 +164,25 @@ async function DirectoryBody({ query, locale }: { query: SearchParams; locale: L
 
   return (
     <div className="dx-layout">
+      {/* On a phone the first choice is a two-way tab across the top; the
+          sidebar group below says the same thing on a wide screen. */}
+      <nav className="dx-mtabs" aria-label={tx(locale, "Cara kontribusi", "How to contribute")}>
+        {DIRECTORY_TRACKS.map((track) => (
+          <Link
+            key={track}
+            className={filters.track === track ? "is-active" : ""}
+            aria-current={filters.track === track ? "page" : undefined}
+            href={pathFor({ track, source: "", facet: "", q: filters.q })}
+          >
+            <TrackIcon track={track} />
+            {tx(locale, TRACK_COPY[track].titleId, TRACK_COPY[track].titleEn)}
+            <span>{entries.filter((entry) => entry.track === track).length}</span>
+          </Link>
+        ))}
+      </nav>
+
       <aside className="dx-side" aria-label={tx(locale, "Filter", "Filters")}>
-        <FacetGroup title={tx(locale, "Cara kontribusi", "How to contribute")}>
+        <FacetGroup className="dx-facet-tracks" title={tx(locale, "Cara kontribusi", "How to contribute")}>
           {DIRECTORY_TRACKS.map((track) => (
             <FacetLink
               key={track}
@@ -266,9 +283,9 @@ async function DirectoryBody({ query, locale }: { query: SearchParams; locale: L
   );
 }
 
-function FacetGroup({ title, children }: { title: string; children: React.ReactNode }) {
+function FacetGroup({ title, className = "", children }: { title: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className="dx-facet">
+    <div className={`dx-facet ${className}`}>
       <p className="dx-facet-title">{title}</p>
       <ul>{children}</ul>
     </div>
