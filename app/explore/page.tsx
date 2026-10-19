@@ -39,8 +39,8 @@ import { tx, type Locale } from "../lib/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await currentLocale();
-  const title = tx(locale, "Jelajahi — Builders", "Explore — Builders");
-  const description = tx(locale, "Jelajahi proyek berdasarkan kategori, tahap, dan peran, lalu temukan tempat terbaik untuk berkontribusi.", "Explore projects by category, stage, and role, then find the best place to contribute.");
+  const title = tx(locale, "Produk Builders — Builders", "Builders' Products — Builders");
+  const description = tx(locale, "Produk buatan builders yang sedang mencari bantuan untuk memantapkan produknya — saring berdasarkan tahap, topik, dan peran.", "Products made by builders who are looking for help to make them solid — filter by stage, topic, and role.");
   return { title, description, alternates: { canonical: "/explore" }, openGraph: shareCard({ title, description, url: "/explore" }) };
 }
 
@@ -112,8 +112,8 @@ export default async function CollaborationPage({ searchParams }: { searchParams
       <main id="main-content" className="discovery-page collaboration-page">
         <section className="collaboration-hero" aria-labelledby="collaboration-title">
           <div>
-            <h1 id="collaboration-title">{tx(locale, "Jelajahi & Berkontribusi", "Explore & Contribute")}</h1>
-            <p>{tx(locale, "Jelajahi proyek berdasarkan kebutuhannya, temukan kontribusi yang cocok, atau cari inspirasi.", "Browse projects by what they need, find a contribution that fits, or get inspired.")}</p>
+            <h1 id="collaboration-title">{tx(locale, "Produk builders yang butuh bantuan", "Builders' products that need a hand")}</h1>
+            <p>{tx(locale, "Produk dari komunitas kita yang sedang dimantapkan. Pilih yang kebutuhannya cocok dengan keahlianmu — yang berlabel GitHub menerima pull request langsung.", "Products from our community that are being made solid. Pick one whose needs fit your skills — those with the GitHub label take pull requests directly.")}</p>
           </div>
           <ContributorPulse />
         </section>

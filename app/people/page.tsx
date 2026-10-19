@@ -69,7 +69,7 @@ export default async function PeoplePage({ searchParams }: { searchParams?: Sear
 
   return (
     <>
-      <SiteHeader returnTo={query.then(hrefForQuery)} active="people" />
+      <SiteHeader returnTo={query.then(hrefForQuery)} active="community" />
 
       <main id="main-content" className="people-page">
         <header className="people-directory-head">

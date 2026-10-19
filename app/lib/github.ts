@@ -186,3 +186,60 @@ function publicUrl(value: unknown): string {
 function clip(value: string, maximum: number): string {
   return value.slice(0, maximum).trim();
 }
+
+export type GitHubRepositoryStats = {
+  stars: number;
+  openIssues: number;
+  language: string;
+  pushedAt: string;
+  archived: boolean;
+};
+
+type GitHubRepositoryStatsResponse = {
+  stargazers_count?: unknown;
+  open_issues_count?: unknown;
+  language?: unknown;
+  pushed_at?: unknown;
+  archived?: unknown;
+};
+
+/**
+ * The few numbers the open source listing shows beside a curated entry.
+ *
+ * Returns null rather than throwing: these numbers decorate a listing that is
+ * complete without them, so a rate limit or a renamed repository costs the
+ * numbers on one card and nothing else. `owner` and `repo` come from the
+ * curated catalogue, never from a request, but are encoded all the same.
+ */
+export async function getGitHubRepositoryStats(
+  owner: string,
+  repo: string,
+  request: typeof fetch = fetch,
+  token = "",
+): Promise<GitHubRepositoryStats | null> {
+  try {
+    const response = await request(
+      `${GITHUB_API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+      {
+        headers: token ? { ...REQUEST_HEADERS, Authorization: `Bearer ${token}` } : REQUEST_HEADERS,
+        signal: AbortSignal.timeout(4_500),
+      },
+    );
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as GitHubRepositoryStatsResponse;
+    return {
+      stars: numberValue(data.stargazers_count),
+      openIssues: numberValue(data.open_issues_count),
+      language: stringValue(data.language),
+      pushedAt: stringValue(data.pushed_at),
+      archived: data.archived === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function numberValue(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}

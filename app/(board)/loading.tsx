@@ -5,10 +5,10 @@ export default function Loading() {
   return (
     <>
       <HeaderShell active="home" />
-      <main id="main-content" className="landing-page">
+      <main id="main-content" className="landing-page oss-home">
         <LoadingNote />
 
-        <section className="landing-hero">
+        <section className="landing-hero oss-hero">
           <div className="landing-hero-copy">
             <Skeleton height={11} width={230} style={{ marginBottom: 20 }} />
             <Skeleton height={63} width="94%" style={{ marginBottom: 11 }} />
@@ -16,40 +16,17 @@ export default function Loading() {
             <Skeleton height={15} width="88%" style={{ marginBottom: 10 }} />
             <Skeleton height={15} width="72%" />
             <div className="home-hero-actions">
-              <Skeleton height={50} width={180} />
-              <Skeleton height={50} width={225} />
+              <Skeleton height={50} width={240} />
+              <Skeleton height={50} width={240} />
             </div>
           </div>
         </section>
 
-        <section className="landing-stats">
-          <div className="landing-stats-heading">
-            <div>
-              <Skeleton height={11} width={190} style={{ marginBottom: 18 }} />
-              <Skeleton height={48} width="78%" />
-            </div>
-          </div>
-          <div className="ecosystem-card">
-            <Skeleton height={12} width="32%" style={{ marginBottom: 28 }} />
-            <Skeleton height={82} style={{ marginBottom: 18 }} />
-            <Skeleton height={130} />
-          </div>
-        </section>
-
-        <section className="landing-purpose">
-          <div className="landing-section-intro">
-            <Skeleton height={11} width={210} style={{ marginBottom: 18 }} />
-            <Skeleton height={50} width="72%" />
-          </div>
-          <div className="purpose-grid">
-            {[0, 1, 2].map((slot) => (
-              <div className="purpose-card" key={slot}>
-                <Skeleton height={49} width={49} style={{ marginBottom: 42 }} />
-                <Skeleton height={9} width="38%" style={{ marginBottom: 18 }} />
-                <Skeleton height={24} width="88%" style={{ marginBottom: 9 }} />
-                <Skeleton height={24} width="70%" />
-              </div>
-            ))}
+        <section className="oss-section">
+          <Skeleton height={11} width={190} style={{ marginBottom: 18 }} />
+          <Skeleton height={48} width="64%" style={{ marginBottom: 30 }} />
+          <div className="oss-grid">
+            {[0, 1, 2].map((slot) => <Skeleton key={slot} height={320} style={{ borderRadius: 20 }} />)}
           </div>
         </section>
       </main>

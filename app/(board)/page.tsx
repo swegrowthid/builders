@@ -1,22 +1,16 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import Link from "@/app/components/responsive-link";
 import { shareCard } from "../content";
-import { CollaborationTrail, initials } from "../components/pieces";
+import { initials } from "../components/pieces";
 import { Arrow, SiteFooter, SiteHeader } from "../components/shell";
 import { ProjectLogo } from "../components/project-logo";
-import { RotatingHeadline } from "../components/rotating-headline";
-import {
-  listPeople,
-  listProjects,
-  listRecentActivity,
-  type Person,
-  type ProjectSummary,
-} from "../lib/data";
-import { Skeleton } from "../components/skeleton";
+import { RepoCard } from "../components/open-source";
+import { listPeopleAtWork, listProjects, type PersonAtWork, type ProjectSummary } from "../lib/data";
 import { readPublicly } from "../lib/public-read";
 import { projectBlurb } from "../lib/brief";
-import { projectTypeLabel } from "../lib/project-types";
+import { communityGroup } from "../lib/community";
+import { listOpenSourceRepos } from "../lib/open-source-live";
+import { primaryProfession } from "../lib/people";
 import { roleLabel } from "../lib/roles";
 import { stageLabel } from "../lib/stages";
 import { currentLocale } from "../lib/locale-server";
@@ -24,77 +18,115 @@ import { tx, type Locale } from "../lib/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await currentLocale();
-  const title = tx(locale, "Builders — Tampilkan Karyamu dan Bangun Portofolio yang Berdampak", "Builders — Show Your Work and Build a Portfolio That Matters");
-  const description = tx(locale, "Ruang publik untuk menampilkan karyamu, menunjukkan karya nyata, dan membuatmu lebih mudah ditemukan oleh tim yang tepat.", "A public place to build tech projects, show real work, and get discovered by the right team.");
+  const title = tx(locale, "Builders — Mulai Kontribusi Open Source Pertamamu", "Builders — Start Your First Open Source Contribution");
+  const description = tx(
+    locale,
+    "Repo open source milik kami dan yang kami rekomendasikan, komunitas calon kontributor, dan produk builders yang butuh bantuan.",
+    "Open source repos we maintain and recommend, a community of would-be contributors, and builders' products that need a hand.",
+  );
   return { title, description, alternates: { canonical: "/" }, openGraph: shareCard({ title, description, url: "/" }) };
 }
 
-const USE_CASES = [
-  ["Membangun secara terbuka agar orang dapat melihatnya", "Building in public, so people can see"],
-  ["Menemukan kolaborator untuk tumbuh bersama", "Finding a collaborator, to grow together"],
-  ["Mengubah karya menjadi portofolio", "Turning work into a portfolio"],
-  ["Terhubung dengan orang yang membutuhkanmu", "Connected by people who need you"],
-];
-
-const WORKFLOW = [
-  ["Cantumkan proyek", "List a project", "Tuliskan masalahnya, sasarannya, dan sudah sejauh apa pekerjaannya.", "Write down the problem, who it is for, and where the work stands."],
-  ["Pilih cara proyek berjalan", "Choose how it lives", "Buka peran atau jadikan proyek sebagai catatan pengembangan publik.", "Open a role, or leave the project as a public build log."],
-  ["Kolaborasi di proyek nyata", "Collaborate on real projects", "Ambil peran, kerjakan kontribusi nyata, dan bangun pengalaman yang dapat dibuktikan.", "Take a role, make a real contribution, and build experience you can prove."],
-  ["Rilis dan simpan buktinya", "Ship and keep the proof", "Karya selesai dan kontribusi nyata masuk ke portofoliomu.", "Finished work and real contributions land on your portfolio."],
-  ["Ditemukan oleh tim tech", "Get discovered by tech teams", "Profilmu masuk ke Talent Pool agar recruiter, hiring manager, dan tim tech dapat melihat buktinya.", "Your profile enters the Talent Pool so recruiters, hiring managers, and tech teams can see the evidence."],
+/** The path from "I want to contribute" to a merged PR, in the order it happens. */
+const FIRST_PR = [
+  [
+    "Pilih repo",
+    "Pick a repo",
+    "Mulai dari repo milik kami — reviewer-nya kenal kamu. Atau pilih rekomendasi yang alasannya cocok denganmu.",
+    "Start with one of ours — the reviewer knows you. Or pick a recommendation whose reason fits you.",
+  ],
+  [
+    "Baca CONTRIBUTING",
+    "Read CONTRIBUTING",
+    "Cara menjalankan proyek, gaya kode, dan aturan PR. Sepuluh menit di sini menghemat satu putaran review.",
+    "How to run it, the code style, the PR rules. Ten minutes here saves a review round.",
+  ],
+  [
+    "Ambil satu isu pemula",
+    "Take one starter issue",
+    "Komentari isunya dulu agar tidak dikerjakan dua orang. Kecil itu bagus: yang penting selesai.",
+    "Comment on the issue first so two people don't do it. Small is good: what matters is finishing.",
+  ],
+  [
+    "Kirim PR, tanggapi review",
+    "Send the PR, answer review",
+    "Review bukan penilaian. Tanyakan di komunitas kalau ada yang bikin bingung.",
+    "Review is not a verdict. Ask the community when something is confusing.",
+  ],
+  [
+    "Tautkan GitHub di profil",
+    "Link GitHub on your profile",
+    "Kamu masuk grup calon kontributor, dan founder bisa menemukanmu.",
+    "You join the contributors group, and founders can find you.",
+  ],
 ] as const;
 
 export default async function Home() {
-  const [projectsResult, peopleResult, activityResult, askingResult, locale] = await Promise.all([
-    readPublicly("projects on the home page", () => listProjects({ lane: "newest" }), []),
-    readPublicly("people on the home page", () => listPeople(400), []),
-    readPublicly("recent collaboration on the home page", () => listRecentActivity(5), []),
-    readPublicly("projects asking for a role", () => listProjects({ lane: "needs-help" }), []),
+  const [reposResult, peopleResult, projectsResult, locale] = await Promise.all([
+    readPublicly("open source repos on the home page", () => listOpenSourceRepos(), []),
+    readPublicly("community on the home page", () => listPeopleAtWork(1000), []),
+    readPublicly("products on the home page", () => listProjects({ lane: "active" }), []),
     currentLocale(),
   ]);
-  const projects = projectsResult.value;
-  const people = peopleResult.value;
-  const activity = activityResult.value;
-  // Only the ones that actually name a role: "mencari kolaborator" with nothing
-  // said about what for is not an invitation anybody can answer.
-  const asking = askingResult.value.filter((project) => project.openRoles.length > 0).slice(0, 4);
-  const dataUnavailable = [projectsResult, peopleResult, activityResult, askingResult]
-    .some((result) => result.unavailable);
-  const openRoles = projects.reduce((total, project) => total + project.openSeatCount, 0);
+  const repos = reposResult.value;
+  const internal = repos.filter((repo) => repo.list === "internal");
+  const recommended = repos.filter((repo) => repo.list === "recommended");
+  const contributors = communityGroup(peopleResult.value, "contributors");
+  const founders = communityGroup(peopleResult.value, "founders");
+  // Only products that ask for something — a pull request or a named role —
+  // and those open to pull requests first: on an open source page, they are
+  // the ones a visitor can help without asking anybody for a seat.
+  const products = projectsResult.value
+    .filter((project) => project.openForGitHubContributions || project.openSeatCount > 0)
+    .sort((a, b) => Number(b.openForGitHubContributions) - Number(a.openForGitHubContributions))
+    .slice(0, 3);
+  const dataUnavailable = [reposResult, peopleResult, projectsResult].some((result) => result.unavailable);
 
   return (
     <>
       <SiteHeader returnTo="/" active="home" />
 
-      <main id="main-content" className="landing-page">
-        <section className="landing-hero" aria-labelledby="landing-title">
+      <main id="main-content" className="landing-page oss-home">
+        <section className="landing-hero oss-hero" aria-labelledby="landing-title">
           <div className="landing-hero-copy">
-            <RotatingHeadline />
+            <p className="home-eyebrow">{tx(locale, "Open source · dari Indonesia", "Open source · from Indonesia")}</p>
+            <h1 id="landing-title">
+              {tx(locale, "Kontribusi open source pertamamu", "Your first open source contribution")}{" "}
+              <em>{tx(locale, "dimulai di sini.", "starts here.")}</em>
+            </h1>
             <p className="landing-hero-lead">
-              {tx(locale, "Ruang publik untuk membangun dan mengembangkan proyek techmu, membuktikan keahlianmu, dan berkolaborasi.", "A public place to build and grow your tech project, prove your skill and collaborate.")}
+              {tx(
+                locale,
+                "Kami kurasi repo milik kami dan repo yang kami rekomendasikan — lengkap dengan alasannya dan isu pemulanya — supaya software engineer bisa langsung kirim PR, bukan bingung mulai dari mana.",
+                "We curate the repos we maintain and the ones we recommend — each with its reason and its starter issues — so software engineers can send a PR instead of wondering where to begin.",
+              )}
             </p>
 
-            <div className="home-hero-actions" aria-label={tx(locale, "Mulai menggunakan Builders", "Get started with Builders")}>
-              <Link className="home-hero-primary" href="/new">
-                <span aria-hidden="true">+</span> {tx(locale, "Tambah proyek", "Add a project")}
+            <div className="home-hero-actions" aria-label={tx(locale, "Mulai berkontribusi", "Start contributing")}>
+              <Link className="home-hero-primary" href="/open-source">
+                {tx(locale, "Cari repo untuk dikontribusi", "Find a repo to contribute to")} <Arrow />
               </Link>
-              <Link className="home-hero-secondary" href="/explore">
-                {tx(locale, "Jelajahi proyek", "Browse projects")} <Arrow />
+              <Link className="home-hero-secondary" href="/community">
+                {tx(locale, "Gabung komunitas kontributor", "Join the contributor community")}
               </Link>
             </div>
 
-            <div className="landing-counts" aria-label={tx(locale, "Aktivitas Builders saat ini", "Current Builders activity")}>
+            <div className="landing-counts oss-counts" aria-label={tx(locale, "Isi Builders saat ini", "What Builders holds today")}>
               <span className="landing-count">
-                <strong>{people.length}</strong>
-                <span>{tx(locale, "orang", "people")}</span>
+                <strong>{internal.length}</strong>
+                <span>{tx(locale, "repo kami", "our repos")}</span>
               </span>
               <span className="landing-count">
-                <strong>{projects.length}</strong>
-                <span>{tx(locale, "proyek", "projects")}</span>
+                <strong>{recommended.length}</strong>
+                <span>{tx(locale, "rekomendasi", "recommended")}</span>
               </span>
               <span className="landing-count">
-                <strong>{openRoles}</strong>
-                <span>{tx(locale, "peran terbuka", "open roles")}</span>
+                <strong>{contributors.length}</strong>
+                <span>{tx(locale, "kontributor", "contributors")}</span>
+              </span>
+              <span className="landing-count">
+                <strong>{projectsResult.value.length}</strong>
+                <span>{tx(locale, "produk", "products")}</span>
               </span>
             </div>
           </div>
@@ -106,227 +138,60 @@ export default async function Home() {
           </p>
         ) : null}
 
-        <section className="landing-project-feature solo-builder-feature" aria-labelledby="solo-builder-title">
+        <section className="oss-section" aria-labelledby="internal-title">
           <div className="landing-project-feature-head">
             <div>
-              <p className="home-eyebrow">{tx(locale, "Untuk solo builder", "For solo builders")}</p>
-              <h2 id="solo-builder-title">
-                {tx(locale, "Jangan sampai proyekmu berhenti dan stuck di kamu sendirian.", "Don't let your project stop and get stuck with just you.")}
-              </h2>
+              <p className="home-eyebrow">01 · {tx(locale, "Open source kami", "Our open source")}</p>
+              <h2 id="internal-title">{tx(locale, "PR pertama paling mudah: di repo yang kami review sendiri.", "The easiest first PR: on a repo we review ourselves.")}</h2>
             </div>
             <p>
               {tx(
                 locale,
-                "Di sini kamu bisa cari orang untuk berkolaborasi dan membuat proyekmu terus bertumbuh — bukan cuma jadi folder yang didiamkan.",
-                "Find people to collaborate with here, and keep your project growing — instead of it becoming a folder nobody touches again.",
+                "Repo milik internal kami. Kamu tidak mengirim PR ke orang asing — kamu bisa bertanya langsung di komunitas, dan review-nya datang dari orang yang mau kamu berhasil.",
+                "Repos we maintain. You are not sending a PR to strangers — you can ask in the community, and review comes from people who want you to succeed.",
               )}
             </p>
           </div>
-
-          <div className="landing-index-filters" aria-label={tx(locale, "Manfaat berkolaborasi", "Benefits of collaborating")}>
-            <span>✅ {tx(locale, "Buka peran", "Open roles")}</span><span>✅ {tx(locale, "Cari kolaborator", "Find collaborators")}</span><span>✅ {tx(locale, "Bagi kepemilikan", "Share ownership")}</span><span>✅ {tx(locale, "Proyek tetap jalan", "Keep it moving")}</span>
+          <div className="oss-grid">
+            {internal.map((repo) => <RepoCard key={`${repo.owner}/${repo.repo}`} repo={repo} locale={locale} />)}
           </div>
-
-          <div className="solo-builder-panels">
-            <div className="solo-builder-panel" aria-labelledby="contribution-activity-title">
-              <div className="solo-builder-panel-head">
-                <div>
-                  <p className="home-eyebrow">{tx(locale, "Sedang terjadi", "Happening now")}</p>
-                  <h3 id="contribution-activity-title">{tx(locale, "Aktivitas kontribusi", "Contribution activity")}</h3>
-                </div>
-                <span className="live-dot" title={tx(locale, "Diperbarui dari aktivitas proyek", "Updated from project activity")} />
-              </div>
-              <p className="solo-builder-panel-note">
-                {tx(locale, "Kontribusi nyata yang baru saja terjadi di proyek orang lain.", "Real contributions that just happened on other people's projects.")}
-              </p>
-              {/* The trail reads the clock for "2 hari lalu", so it arrives at
-                  request time behind its own boundary rather than holding the
-                  rest of the page back. */}
-              <Suspense fallback={<Skeleton height={196} />}>
-                <CollaborationTrail
-                  events={activity}
-                  locale={locale}
-                  emptyNote={tx(locale, "Belum ada aktivitas. Jadilah yang pertama berkontribusi.", "No activity yet. Be the first to contribute.")}
-                />
-              </Suspense>
-              <Link className="solo-builder-panel-link" href="/explore?lane=active">
-                {tx(locale, "Lihat proyek yang sedang bergerak", "See the projects on the move")} <Arrow />
-              </Link>
-            </div>
-
-            <div className="solo-builder-panel" aria-labelledby="asking-for-role-title">
-              <div className="solo-builder-panel-head">
-                <div>
-                  <p className="home-eyebrow">{tx(locale, "Sedang dicari", "Wanted right now")}</p>
-                  <h3 id="asking-for-role-title">{tx(locale, "Proyek ini mencari peran apa", "Which project needs which role")}</h3>
-                </div>
-              </div>
-              <p className="solo-builder-panel-note">
-                {tx(locale, "Proyek yang sudah menyebutkan peran yang mereka butuhkan.", "Projects that have already named the role they need.")}
-              </p>
-              {asking.length > 0 ? (
-                <ul className="role-wanted-list">
-                  {asking.map((project) => (
-                    <li key={project.id}>
-                      <Link href={`/projects/${project.slug}`}>
-                        <strong>{project.title}</strong>
-                        <small>{stageLabel(project.stage, locale)}</small>
-                      </Link>
-                      <span className="role-wanted-roles" aria-label={tx(locale, `Peran yang dicari ${project.title}`, `Roles ${project.title} is looking for`)}>
-                        {project.openRoles.slice(0, 2).map((role) => (
-                          <i key={role}>{roleLabel(role, "", locale)}</i>
-                        ))}
-                        {project.openRoles.length > 2 ? <i>+{project.openRoles.length - 2}</i> : null}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="solo-builder-panel-empty">
-                  {tx(locale, "Belum ada peran yang dibuka. Proyekmu bisa jadi yang pertama.", "No roles are open yet. Yours could be the first.")}
-                </p>
-              )}
-              <Link className="solo-builder-panel-link" href="/explore?needs=open">
-                {tx(locale, "Lihat semua peran yang dicari", "See every role being asked for")} <Arrow />
-              </Link>
-            </div>
-          </div>
-
-          <Link className="landing-inline-link" href="/new">
-            {tx(locale, "Cantumkan proyek dan buka peran", "List your project and open a role")} <Arrow />
+          <Link className="landing-inline-link" href="/open-source?list=internal">
+            {tx(locale, "Semua repo milik kami", "All our repos")} <Arrow />
           </Link>
         </section>
 
-        <section className="landing-use-cases" aria-labelledby="use-cases-title">
-          <div className="landing-section-intro">
-            <p className="home-eyebrow">{tx(locale, "Mengapa upload karyamu di sini?", "Why share your project here?")}</p>
-            <h2 id="use-cases-title">{tx(locale, "Bagikan proyekmu agar dilihat semua.", "Put your project, so everyone can see.")}</h2>
-            <p className="landing-section-lead">{tx(locale, "Setelah dibagikan, kamu dapat:", "Once you share it, you can:")}</p>
-          </div>
-
-          <div className="use-case-layout">
-            <ul className="use-case-list">
-              {USE_CASES.map(([idCopy, enCopy]) => (
-                <li key={enCopy}><span aria-hidden="true">↗</span>{tx(locale, idCopy, enCopy)}</li>
-              ))}
-            </ul>
-          </div>
-
-          <Link className="landing-inline-link" href="/explore">
-            {tx(locale, "Lihat contoh proyek", "See example projects")} <Arrow />
-          </Link>
-        </section>
-
-        <section className="landing-project-feature" id="projects" aria-labelledby="project-feature-title">
+        <section className="oss-section oss-section-tinted" aria-labelledby="recommended-title">
           <div className="landing-project-feature-head">
             <div>
-              <p className="home-eyebrow">01 · {tx(locale, "Galeri Proyek", "Project Showcase")}</p>
-              <h2 id="project-feature-title">{tx(locale, "Satu proyek yang dibagikan membuka banyak peluang.", "One shared project creates multiple opportunities.")}</h2>
+              <p className="home-eyebrow">02 · {tx(locale, "Rekomendasi kami", "Recommended by us")}</p>
+              <h2 id="recommended-title">{tx(locale, "Repo di luar sana yang kami jamin, dan alasannya.", "Repos out there we vouch for, and why.")}</h2>
             </div>
-          </div>
-
-          <div className="landing-index-filters" aria-label={tx(locale, "Contoh filter proyek", "Example project filters")}>
-            <span>✅ {tx(locale, "Mudah dicari", "Searchable")}</span><span>✅ {tx(locale, "Menginspirasi dan terinspirasi", "Inspire and get inspired")}</span><span>✅ {tx(locale, "Tumbuh bersama kontributor", "Grow with contributors")}</span><span>✅ {tx(locale, "Temukan kolaborator", "Find collaborators")}</span>
-          </div>
-
-          {projects.length > 0 ? (
-            <div className="landing-project-index">
-              {projects.slice(0, 3).map((project) => <ProjectIndexRow key={project.id} project={project} locale={locale} />)}
-            </div>
-          ) : (
-            <p className="landing-data-empty">{tx(locale, "Belum ada proyek. Tambahkan karya pertama.", "No projects yet. Add the first piece of work.")}</p>
-          )}
-
-          <Link className="landing-inline-link" href="/explore">{tx(locale, "Jelajahi semua proyek", "Browse all projects")} <Arrow /></Link>
-        </section>
-
-        <section className="portfolio-story" id="portfolio" aria-labelledby="portfolio-story-title">
-          <div className="portfolio-story-copy">
-            <p className="home-eyebrow">02 · {tx(locale, "Pembuat portofolio", "Portfolio builder")}</p>
-            <h2 id="portfolio-story-title">{tx(locale, "Capek ngurus web portofolio sendirian?", "Tired of maintaining a portfolio on your own?")}</h2>
             <p>
-              {tx(locale, "Profilmu mengumpulkan proyek, kontribusi, dan peran yang benar-benar dijalani. Satu tautan yang terus berkembang setiap kali sesuatu dirilis.", "Your profile collects projects, contributions, and the roles that actually happened. One link that grows every time something ships.")}
+              {tx(
+                locale,
+                "Karena kami pernah PR ke sana, karena maintainer-nya orang Indonesia, karena itu stack kami sendiri, atau karena memang ramah pemula. Setiap kartu menyebutkan alasannya.",
+                "Because we have sent PRs there, because the maintainers are Indonesian, because it is our own stack, or because it is simply beginner friendly. Every card says which.",
+              )}
             </p>
-            <ul>
-              <li><span>01</span> {tx(locale, "Portofolio pribadi yang berpusat pada proyek", "A project-first personal portfolio")}</li>
-              <li><span>02</span> {tx(locale, "Tidak perlu deployment", "No deployment required")}</li>
-              <li><span>03</span> {tx(locale, "Keahlian dibuktikan melalui karya yang dirilis", "Skills proven by shipped work")}</li>
-            </ul>
-            <a className="portfolio-story-link" href="https://builders.swegrowth.id/u/zikrul-ihsan">
-              {tx(locale, "Lihat portofolio aktif", "See a live portfolio")} <Arrow />
-            </a>
           </div>
-
-          <a
-            className="portfolio-preview"
-            href="https://builders.swegrowth.id/u/zikrul-ihsan"
-            aria-label={tx(locale, "Lihat portofolio Zikrul Ihsan", "See Zikrul Ihsan's portfolio")}
-          >
-            <div className="portfolio-preview-label">
-              <span>{tx(locale, "PORTOFOLIO BERBASIS KARYA", "WORK-BUILT PORTFOLIO")}</span>
-              <i><b /> {tx(locale, "Profil aktif", "Active profile")}</i>
-            </div>
-            <div className="portfolio-preview-person">
-              <span className="portfolio-preview-avatar" aria-hidden="true">ZI</span>
-              <div>
-                <h3>Zikrul Ihsan</h3>
-                <p>{tx(locale, "Insinyur Perangkat Lunak · Penggerak Komunitas", "Software Engineer · Community Builder")}</p>
-              </div>
-            </div>
-            <p className="portfolio-preview-bio">
-              {tx(locale, "Membangun produk digital, komunitas, dan proyek publik yang bermanfaat.", "Building digital products, communities, and useful public projects.")}
-            </p>
-            <ul className="portfolio-preview-skills" aria-label={tx(locale, "Keahlian Zikrul Ihsan", "Zikrul Ihsan's skills")}>
-              <li>{tx(locale, "5 tahun", "5 years")}</li><li>Python</li><li>{tx(locale, "Rekayasa AI", "AI Engineering")}</li>
-            </ul>
-            <div className="portfolio-preview-proof">
-              <div><strong>6</strong><span>{tx(locale, "proyek dibangun", "projects built")}</span></div>
-              <div><span>{tx(locale, "Karya pilihan", "Selected work")}</span><p>Swegrowth · Main Aman · CariKontak</p></div>
-            </div>
-            <span className="portfolio-preview-url"><span>builders.swegrowth.id/u/zikrul-ihsan</span> <Arrow diagonal /></span>
-          </a>
-        </section>
-
-        <section className="talent-story" aria-labelledby="talent-story-title">
-          <div className="talent-story-copy">
-            <p className="home-eyebrow">03 · Talent pool</p>
-            <h2 id="talent-story-title">{tx(locale, "Lengkapi profil profesionalmu agar ditemukan oleh recruiters", "Complete your professional profile, then get discovered by recruiters")}</h2>
-            <p>
-              {tx(locale, "Kolaborasi di proyek tech membangun pengalaman nyata. Talent Pool menghubungkanmu dengan recruiter, hiring manager, dan tim tech.", "Collaborating on tech projects builds real experience. Talent Pool connects you with recruiters, hiring managers, and tech teams.")}
-            </p>
-            <ul>
-              <li><span>✓</span> {tx(locale, "Recruiter dapat menemukan tech talent melalui peran, keahlian, dan status peluang", "Recruiters can find tech talent through role, skills, and opportunity status")}</li>
-              <li><span>✓</span> {tx(locale, "Hiring manager dapat menilai keahlianmu dari proyek yang kamu kerjakan", "Hiring managers can assess your skills through the projects you worked on")}</li>
-              <li><span>✓</span> {tx(locale, "Tim tech dapat menemukan rekan yang tepat untuk diajak bekerja bersama", "Tech teams can find the right people to work with")}</li>
-            </ul>
-            <Link className="talent-story-link" href="/people">{tx(locale, "Jelajahi tech talent", "Browse tech talent")} <Arrow /></Link>
+          <div className="oss-grid">
+            {recommended.slice(0, 6).map((repo) => <RepoCard key={`${repo.owner}/${repo.repo}`} repo={repo} locale={locale} />)}
           </div>
-
-          <div className="talent-preview" aria-label={tx(locale, "Tech talent di Builders", "Tech talent on Builders")}>
-            <div className="talent-preview-head">
-              <span>{tx(locale, "Tech talent dengan karya yang terlihat", "Tech talent with visible work")}</span>
-              <Link href="/people">{tx(locale, "Lihat semua", "View all")}</Link>
-            </div>
-            {people.length > 0 ? (
-              <ul>
-                {people.slice(0, 3).map((person) => <TalentRow key={person.id} person={person} locale={locale} />)}
-              </ul>
-            ) : (
-              <div className="talent-preview-empty"><p>{tx(locale, "Belum ada profil.", "No profiles yet.")}</p><Link href="/signup">{tx(locale, "Buat profilmu", "Create yours")}</Link></div>
-            )}
-          </div>
+          <Link className="landing-inline-link" href="/open-source?list=recommended">
+            {tx(locale, `Lihat semua ${recommended.length} rekomendasi`, `See all ${recommended.length} recommendations`)} <Arrow />
+          </Link>
         </section>
 
         <section className="how-it-works" aria-labelledby="how-title">
           <div className="how-heading">
             <div>
-              <p className="home-eyebrow">{tx(locale, "Cara semuanya terhubung", "How it fits together")}</p>
-              <h2 id="how-title">{tx(locale, "Cara memulai 🏁", "How to get started 🏁")}</h2>
+              <p className="home-eyebrow">03 · {tx(locale, "Dari nol sampai merged", "From zero to merged")}</p>
+              <h2 id="how-title">{tx(locale, "Lima langkah PR pertamamu.", "Five steps to your first PR.")}</h2>
             </div>
-            <p>{tx(locale, "Cantumkan karya sekali saja. Indeks proyek, portofolio, dan talent pool berkembang dari bukti yang sama.", "List the work once. The project index, portfolio, and talent pool grow from the same evidence.")}</p>
+            <p>{tx(locale, "Tidak perlu jago dulu untuk mulai. Perbaikan typo di dokumentasi juga kontribusi.", "You don't need to be an expert to start. A typo fix in the docs is a contribution too.")}</p>
           </div>
           <ol className="how-steps how-steps-five">
-            {WORKFLOW.map(([titleId, titleEn, bodyId, bodyEn], index) => (
+            {FIRST_PR.map(([titleId, titleEn, bodyId, bodyEn], index) => (
               <li key={titleEn}>
                 <span>{String(index + 1).padStart(2, "0")}</span>
                 <div className="how-step-mark" aria-hidden="true">{index + 1}</div>
@@ -337,13 +202,81 @@ export default async function Home() {
           </ol>
         </section>
 
+        <section className="oss-section oss-community" aria-labelledby="community-title">
+          <div className="landing-project-feature-head">
+            <div>
+              <p className="home-eyebrow">04 · {tx(locale, "Komunitas", "Community")}</p>
+              <h2 id="community-title">{tx(locale, "Calon kontributor dan founder, di satu tempat.", "Contributors and founders, in one place.")}</h2>
+            </div>
+            <p>
+              {tx(
+                locale,
+                "Siapa pun yang mencantumkan GitHub di profilnya masuk grup calon kontributor. Founder adalah orang di balik produk yang terdaftar di sini.",
+                "Anyone who puts their GitHub on their profile joins the contributors group. Founders are the people behind the products listed here.",
+              )}
+            </p>
+          </div>
+
+          <div className="oss-community-columns">
+            <CommunityColumn
+              title={tx(locale, "Calon kontributor", "Contributors")}
+              count={contributors.length}
+              members={contributors.slice(0, 4)}
+              href="/community"
+              empty={tx(locale, "Belum ada. Tautkan GitHub-mu dan jadi yang pertama.", "Nobody yet. Link your GitHub and be the first.")}
+              locale={locale}
+            />
+            <CommunityColumn
+              title={tx(locale, "Founder", "Founders")}
+              count={founders.length}
+              members={founders.slice(0, 4)}
+              href="/community?group=founders"
+              empty={tx(locale, "Belum ada founder dengan produk terdaftar.", "No founder has listed a product yet.")}
+              locale={locale}
+            />
+          </div>
+
+          <Link className="landing-inline-link" href="/account/profile">
+            {tx(locale, "Tambahkan GitHub di profilmu", "Add GitHub to your profile")} <Arrow />
+          </Link>
+        </section>
+
+        <section className="oss-section oss-products" aria-labelledby="products-title">
+          <div className="landing-project-feature-head">
+            <div>
+              <p className="home-eyebrow">05 · {tx(locale, "Produk builders", "Builders' products")}</p>
+              <h2 id="products-title">{tx(locale, "Produk dari komunitas yang butuh bantuan.", "Products from the community that need a hand.")}</h2>
+            </div>
+            <p>
+              {tx(
+                locale,
+                "Setelah PR pertamamu, bantu produk sesama builder jadi lebih matang. Yang menerima pull request di GitHub tampil lebih dulu.",
+                "After your first PR, help a fellow builder's product mature. Those that take pull requests on GitHub come first.",
+              )}
+            </p>
+          </div>
+
+          {products.length > 0 ? (
+            <div className="landing-project-index">
+              {products.map((project) => <ProductRow key={project.id} project={project} locale={locale} />)}
+            </div>
+          ) : (
+            <p className="landing-data-empty">{tx(locale, "Belum ada produk yang meminta bantuan.", "No product is asking for help yet.")}</p>
+          )}
+
+          <div className="oss-products-links">
+            <Link className="landing-inline-link" href="/explore">{tx(locale, "Semua produk builders", "All builders' products")} <Arrow /></Link>
+            <Link className="landing-inline-link" href="/new">{tx(locale, "Daftarkan produkmu", "List your product")} <Arrow /></Link>
+          </div>
+        </section>
+
         <section className="landing-final-cta" aria-labelledby="final-cta-title">
-          <p className="home-eyebrow">{tx(locale, "Mulai dari kamu", "Start with you")}</p>
-          <h2 id="final-cta-title">{tx(locale, "Tampilkan karya agar orang dapat melihatnya.", "Show your work so people can see it.")}</h2>
-          <p>{tx(locale, "Tambahkan proyek meski masih berupa ide. Perbarui seiring perkembangannya.", "Add a project even if it's still an idea. Update it as it moves.")}</p>
+          <p className="home-eyebrow">{tx(locale, "Mulai hari ini", "Start today")}</p>
+          <h2 id="final-cta-title">{tx(locale, "Satu isu kecil hari ini lebih baik dari rencana besar bulan depan.", "One small issue today beats a big plan next month.")}</h2>
+          <p>{tx(locale, "Pilih repo, ambil isu pemula, dan kirim PR. Komunitas ada untuk membantu kalau kamu tersangkut.", "Pick a repo, take a starter issue, send the PR. The community is here when you get stuck.")}</p>
           <div>
-            <Link className="home-hero-primary" href="/new"><span aria-hidden="true">+</span> {tx(locale, "Tambah proyek", "Add a project")}</Link>
-            <Link className="landing-final-secondary" href="/explore">{tx(locale, "Temukan tempat untuk berkontribusi", "Find a place to contribute")} <Arrow /></Link>
+            <Link className="home-hero-primary" href="/open-source">{tx(locale, "Cari repo", "Find a repo")} <Arrow /></Link>
+            <Link className="landing-final-secondary" href="/community">{tx(locale, "Kenalan dengan komunitas", "Meet the community")} <Arrow /></Link>
           </div>
           <small>{tx(locale, "Gratis untuk komunitas.", "Free for the community.")}</small>
         </section>
@@ -354,7 +287,53 @@ export default async function Home() {
   );
 }
 
-function ProjectIndexRow({ project, locale }: { project: ProjectSummary; locale: Locale }) {
+function CommunityColumn({
+  title,
+  count,
+  members,
+  href,
+  empty,
+  locale,
+}: {
+  title: string;
+  count: number;
+  members: PersonAtWork[];
+  href: string;
+  empty: string;
+  locale: Locale;
+}) {
+  return (
+    <div className="talent-preview oss-community-column">
+      <div className="talent-preview-head">
+        <span>{title} · {count}</span>
+        <Link href={href}>{tx(locale, "Lihat semua", "View all")}</Link>
+      </div>
+      {members.length > 0 ? (
+        <ul>
+          {members.map(({ person, ...work }) => (
+            <li key={person.id}>
+              <Link href={`/u/${person.username}`}>
+                <span className="talent-avatar" aria-hidden="true">{initials(person.name)}</span>
+                <span className="talent-person-copy">
+                  <strong>{person.name}</strong>
+                  <small>{primaryProfession({ person, ...work }, locale) || `@${person.username}`}</small>
+                </span>
+                <span className="talent-skills">
+                  {person.skills.slice(0, 2).map((skill) => <i key={skill}>{skill}</i>)}
+                </span>
+                <Arrow />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="talent-preview-empty"><p>{empty}</p></div>
+      )}
+    </div>
+  );
+}
+
+function ProductRow({ project, locale }: { project: ProjectSummary; locale: Locale }) {
   const openRole = project.openRoles[0];
   return (
     <article className="landing-index-row">
@@ -362,38 +341,20 @@ function ProjectIndexRow({ project, locale }: { project: ProjectSummary; locale:
       <div className="landing-index-main">
         <p>
           <span>{stageLabel(project.stage, locale)}</span>
-          {projectTypeLabel(project.projectType, locale) ? ` · ${projectTypeLabel(project.projectType, locale)}` : ""}
+          {project.openForGitHubContributions ? ` · ${tx(locale, "Terbuka untuk PR", "Open to PRs")}` : ""}
           {project.tags[0] ? ` · ${project.tags[0]}` : ""}
         </p>
         <h3><Link className="card-cover-link" href={`/projects/${project.slug}`}>{project.title}</Link></h3>
         <p>{projectBlurb(project)}</p>
       </div>
       <div className="landing-index-role">
-        <small>{openRole ? tx(locale, "Peran terbuka", "Open role") : tx(locale, "Catatan pengembangan", "Build log")}</small>
-        <strong>{openRole ? roleLabel(openRole, "", locale) : tx(locale, "Tidak ada peran terbuka", "No role open")}</strong>
+        <small>{openRole ? tx(locale, "Butuh bantuan", "Needs help with") : tx(locale, "Catatan pengembangan", "Build log")}</small>
+        <strong>{openRole ? roleLabel(openRole, "", locale) : tx(locale, "Kontribusi via GitHub", "Contribute on GitHub")}</strong>
       </div>
       <Link className="landing-index-owner" href={`/u/${project.owner.username}`}>
         <span aria-hidden="true">{initials(project.owner.name)}</span>
         <small>{project.owner.name}</small>
       </Link>
     </article>
-  );
-}
-
-function TalentRow({ person, locale }: { person: Person; locale: Locale }) {
-  return (
-    <li>
-      <Link href={`/u/${person.username}`}>
-        <span className="talent-avatar" aria-hidden="true">{initials(person.name)}</span>
-        <span className="talent-person-copy">
-          <strong>{person.name}</strong>
-          <small>{person.profession || person.headline || tx(locale, "Pengembang", "Builder")}</small>
-        </span>
-        <span className="talent-skills" aria-label={tx(locale, `Keahlian ${person.name}`, `${person.name}'s skills`)}>
-          {person.skills.slice(0, 2).map((skill) => <i key={skill}>{skill}</i>)}
-        </span>
-        <Arrow />
-      </Link>
-    </li>
   );
 }
