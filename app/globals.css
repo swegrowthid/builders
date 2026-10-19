@@ -3743,6 +3743,28 @@ form button[aria-busy="true"]::after,
   color: var(--dx-text); font-size: 13px; line-height: 1.45; margin: 2px 0 0; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
 }
+/* Badges are about people, so they speak louder than tags: filled, coloured
+   by kind, with the named people's faces when there are any. */
+.dx-badges { display: flex; flex-wrap: wrap; gap: 5px; list-style: none; margin: 7px 0 0; padding: 0; }
+.dx-badge > a, .dx-badge {
+  align-items: center; border-radius: 99px; display: inline-flex; font-size: 12px; font-weight: 600; gap: 5px;
+}
+.dx-badge { border: 1px solid; padding: 2px 9px 2px 7px; }
+.dx-badge > a { color: inherit; }
+.dx-badge > a:hover span:not(.dx-badge-faces) { text-decoration: underline; text-underline-offset: 2px; }
+.dx-badge-friend-contributed { background: #ecfdf3; border-color: #a7f3d0; color: #047857; }
+.dx-badge-in-our-group { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+.dx-badge-indonesian { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.dx-badge-icon { fill: none; flex: none; height: 13px; stroke: currentColor; stroke-width: 2.2; width: 13px; }
+.dx-flag { border-radius: 2px; height: 10px; stroke: none; width: 14px; }
+.dx-badge-faces { display: inline-flex; margin-left: 2px; }
+.dx-badge-faces img {
+  background: #fff; border: 1.5px solid #fff; border-radius: 50%; height: 18px; margin-left: -5px; width: 18px;
+}
+.dx-badge-faces img:first-child { margin-left: 0; }
+.dx-facet-link .dx-badge-icon { height: 15px; width: 15px; }
+.dx-facet-link .dx-flag { height: 11px; width: 15px; }
+
 .dx-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 7px 0 0; }
 .dx-tag {
   border: 1px solid var(--dx-line); border-radius: 5px; color: var(--dx-muted); font-size: 11px;

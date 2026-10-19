@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { directoryFacets, filterDirectory, productEntries, repoEntry } from "../app/lib/directory.ts";
+import { badgeCounts, directoryFacets, filterDirectory, productEntries, repoEntry } from "../app/lib/directory.ts";
 import { OPEN_SOURCE_REPOS } from "../app/lib/open-source.ts";
 
 const describe = (project) => project.tagline;
@@ -81,7 +81,7 @@ test("one path at a time, narrowed by its chip and by search, keeping the given 
     ...OPEN_SOURCE_REPOS.map((repo) => repoEntry(repo, "en")),
     ...productEntries(product({ openSeatCount: 1, openRoles: ["design"] }), describe, roleName, "en"),
   ];
-  const none = { source: "", facet: "", q: "" };
+  const none = { source: "", badge: "", facet: "", q: "" };
   assert.deepEqual(filterDirectory(entries, { ...none, track: "role" }).map((entry) => entry.name), ["Tool"]);
   assert.deepEqual(
     filterDirectory(entries, { ...none, track: "github" }).map((entry) => entry.name),
@@ -110,4 +110,28 @@ test("chips are the languages on the code path and the roles on the role path", 
   ]);
   const languages = directoryFacets(entries, "github").map((facet) => facet.value);
   assert.ok(languages.includes("Go") && !languages.includes("DESIGN"));
+});
+
+test("badges are carried from the catalogue, filtered on, and counted per path", () => {
+  const repos = [
+    { ...OPEN_SOURCE_REPOS[0], repo: "a", badges: [{ kind: "indonesian" }] },
+    { ...OPEN_SOURCE_REPOS[0], repo: "b", badges: [{ kind: "friend-contributed", people: ["ana"] }, { kind: "indonesian" }] },
+    { ...OPEN_SOURCE_REPOS[0], repo: "c", badges: [] },
+  ];
+  const entries = repos.map((repo) => repoEntry(repo, "en"));
+  assert.deepEqual(entries[1].badges, repos[1].badges);
+
+  const none = { source: "", badge: "", facet: "", q: "" };
+  assert.deepEqual(filterDirectory(entries, { ...none, track: "github", badge: "indonesian" }).map((e) => e.name), ["a", "b"]);
+  assert.deepEqual(filterDirectory(entries, { ...none, track: "github", badge: "friend-contributed" }).map((e) => e.name), ["b"]);
+  assert.deepEqual(badgeCounts(entries, "github"), [
+    { kind: "friend-contributed", count: 1 },
+    { kind: "indonesian", count: 2 },
+  ]);
+  assert.deepEqual(badgeCounts(entries, "role"), []);
+});
+
+test("a product's badges come from the hand-kept list by slug, and default to none", () => {
+  const [entry] = productEntries(product({ slug: "not-in-the-list", openSeatCount: 1, openRoles: ["design"] }), describe, roleName, "en");
+  assert.deepEqual(entry.badges, []);
 });

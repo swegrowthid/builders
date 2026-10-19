@@ -159,7 +159,7 @@ match it.
 
 | Route | What it is |
 | --- | --- |
-| `/` | The directory: facets on the left — how to contribute (`?track=role`; code on GitHub by default), source (`?source=internal\|recommended\|product`), language or role (`?facet=`) — and a table of projects on the right, with search (`?q=`) |
+| `/` | The directory: facets on the left — how to contribute (`?track=role`; code on GitHub by default), signals (`?badge=friend-contributed\|in-our-group\|indonesian`), source (`?source=internal\|recommended\|product`), language or role (`?facet=`) — and a table of projects on the right, with search (`?q=`) |
 | `/explore` | The older project board, narrowed by level, kind, topic, role, search. No longer in the menu |
 | `/projects/<slug>` | One project: the story, what it is doing now, the help it wants, its journey |
 | `/u/<username>` | One person: what they are building, what they helped build, their trail |
@@ -188,6 +188,13 @@ match it.
   GitHub's stars and last push, cached for hours; set `GITHUB_TOKEN` (any
   read-only token) to lift GitHub's anonymous rate limit. Without it a refused
   request costs that card its numbers and nothing else.
+- `app/lib/badges.ts` — the hand-set badges on a directory row: a friend has
+  contributed, the maintainer is in our group, the maintainers are
+  Indonesian. A repository's go on its entry in `app/lib/open-source.ts`
+  (`badges: [{ kind: "friend-contributed", people: ["github-username"] }]`); a
+  builders' product's go in `PRODUCT_BADGES`, by slug. Named people show as
+  their GitHub avatars. Nothing is inferred — a badge exists because somebody
+  wrote it down.
 - `app/lib/directory.ts` — splits the directory by how you contribute: code
   through a pull request on GitHub (our repos, recommended repos, products
   open to PRs), or another role on a builders' product. A product doing both

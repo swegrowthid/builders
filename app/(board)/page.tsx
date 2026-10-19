@@ -11,6 +11,7 @@ import { projectBlurb } from "../lib/brief";
 import {
   DIRECTORY_SOURCES,
   DIRECTORY_TRACKS,
+  badgeCounts,
   directoryFacets,
   filterDirectory,
   isDirectorySource,
@@ -24,6 +25,7 @@ import {
   type DirectoryTrack,
 } from "../lib/directory";
 import { listOpenSourceRepos } from "../lib/open-source-live";
+import { badgeKindLabel, badgeLabel, badgePeople, isBadgeKind, type Badge, type BadgeKind } from "../lib/badges";
 import { roleLabel } from "../lib/roles";
 import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
@@ -48,9 +50,11 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 function readFilters(query: Record<string, string | string[] | undefined>): DirectoryFilters {
   const track = one(query.track);
   const source = one(query.source);
+  const badge = one(query.badge);
   return {
     track: isDirectoryTrack(track) ? track : "github",
     source: isDirectorySource(source) ? source : "",
+    badge: isBadgeKind(badge) ? badge : "",
     facet: one(query.facet).slice(0, 60),
     q: one(query.q).slice(0, 100),
   };
@@ -60,6 +64,7 @@ function pathFor(filters: DirectoryFilters): string {
   const params = new URLSearchParams();
   if (filters.track !== "github") params.set("track", filters.track);
   if (filters.source) params.set("source", filters.source);
+  if (filters.badge) params.set("badge", filters.badge);
   if (filters.facet) params.set("facet", filters.facet);
   if (filters.q) params.set("q", filters.q);
   const search = params.toString();
@@ -159,8 +164,9 @@ async function DirectoryBody({ query, locale }: { query: SearchParams; locale: L
     source,
     count: onTrack.filter((entry) => entry.source === source).length,
   })).filter(({ count }) => count > 0);
+  const badges = badgeCounts(entries, filters.track);
   const code = filters.track === "github";
-  const filtered = Boolean(filters.source || filters.facet || filters.q);
+  const filtered = Boolean(filters.source || filters.badge || filters.facet || filters.q);
 
   return (
     <div className="dx-layout">
@@ -172,7 +178,7 @@ async function DirectoryBody({ query, locale }: { query: SearchParams; locale: L
             key={track}
             className={filters.track === track ? "is-active" : ""}
             aria-current={filters.track === track ? "page" : undefined}
-            href={pathFor({ track, source: "", facet: "", q: filters.q })}
+            href={pathFor({ track, source: "", badge: "", facet: "", q: filters.q })}
           >
             <TrackIcon track={track} />
             {tx(locale, TRACK_COPY[track].titleId, TRACK_COPY[track].titleEn)}
@@ -187,7 +193,7 @@ async function DirectoryBody({ query, locale }: { query: SearchParams; locale: L
             <FacetLink
               key={track}
               active={filters.track === track}
-              href={pathFor({ track, source: "", facet: "", q: filters.q })}
+              href={pathFor({ track, source: "", badge: "", facet: "", q: filters.q })}
               count={entries.filter((entry) => entry.track === track).length}
               icon={<TrackIcon track={track} />}
               note={tx(locale, TRACK_COPY[track].noteId, TRACK_COPY[track].noteEn)}
@@ -196,6 +202,22 @@ async function DirectoryBody({ query, locale }: { query: SearchParams; locale: L
             </FacetLink>
           ))}
         </FacetGroup>
+
+        {badges.length > 0 ? (
+          <FacetGroup title={tx(locale, "Tanda", "Signals")}>
+            {badges.map(({ kind, count }) => (
+              <FacetLink
+                key={kind}
+                active={filters.badge === kind}
+                href={pathFor({ ...filters, badge: filters.badge === kind ? "" : kind })}
+                count={count}
+                icon={<BadgeIcon kind={kind} />}
+              >
+                {badgeKindLabel(kind, locale)}
+              </FacetLink>
+            ))}
+          </FacetGroup>
+        ) : null}
 
         {sources.length > 1 ? (
           <FacetGroup title={tx(locale, "Sumber", "Source")}>
@@ -240,6 +262,7 @@ async function DirectoryBody({ query, locale }: { query: SearchParams; locale: L
           <Form className="dx-search" action="/" role="search">
             {filters.track !== "github" ? <input type="hidden" name="track" value={filters.track} /> : null}
             {filters.source ? <input type="hidden" name="source" value={filters.source} /> : null}
+            {filters.badge ? <input type="hidden" name="badge" value={filters.badge} /> : null}
             {filters.facet ? <input type="hidden" name="facet" value={filters.facet} /> : null}
             <label>
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
@@ -249,7 +272,7 @@ async function DirectoryBody({ query, locale }: { query: SearchParams; locale: L
           </Form>
           <p className="dx-count" role="status">
             <strong>{matched.length}</strong> {tx(locale, "project", matched.length === 1 ? "project" : "projects")}
-            {filtered ? <> · <Link href={pathFor({ track: filters.track, source: "", facet: "", q: "" })}>{tx(locale, "reset", "reset")}</Link></> : null}
+            {filtered ? <> · <Link href={pathFor({ track: filters.track, source: "", badge: "", facet: "", q: "" })}>{tx(locale, "reset", "reset")}</Link></> : null}
           </p>
         </div>
 
@@ -273,7 +296,7 @@ async function DirectoryBody({ query, locale }: { query: SearchParams; locale: L
             <div className="dx-empty" role="row">
               <p role="cell">
                 {tx(locale, "Tidak ada project yang cocok.", "No project matches.")}{" "}
-                <Link href={pathFor({ track: filters.track, source: "", facet: "", q: "" })}>{tx(locale, "Reset filter", "Reset filters")}</Link>
+                <Link href={pathFor({ track: filters.track, source: "", badge: "", facet: "", q: "" })}>{tx(locale, "Reset filter", "Reset filters")}</Link>
               </p>
             </div>
           )}
@@ -324,6 +347,67 @@ function FacetLink({
   );
 }
 
+/**
+ * One badge on a row. When it names people, their GitHub avatars ride along
+ * and the badge links to the first of them — a face is what makes "a friend
+ * has been here" believable.
+ */
+function BadgeChip({ badge, locale }: { badge: Badge; locale: Locale }) {
+  const people = badgePeople(badge);
+  const label = badgeLabel(badge, locale);
+  const title = people.length > 0 ? `${label}: ${people.map((person) => `@${person}`).join(", ")}` : label;
+  const content = (
+    <>
+      <BadgeIcon kind={badge.kind} />
+      <span>{label}</span>
+      {people.length > 0 ? (
+        <span className="dx-badge-faces" aria-hidden="true">
+          {people.slice(0, 3).map((person) => (
+            // GitHub serves a small avatar at this address for any username;
+            // next/image would need the host allow-listed for a 20px picture.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={person} src={`https://github.com/${person}.png?size=40`} alt="" width={18} height={18} loading="lazy" />
+          ))}
+        </span>
+      ) : null}
+    </>
+  );
+
+  return (
+    <li className={`dx-badge dx-badge-${badge.kind}`} title={title}>
+      {people.length > 0 ? (
+        <a href={`https://github.com/${people[0]}`} target="_blank" rel="noopener noreferrer" aria-label={title}>{content}</a>
+      ) : (
+        content
+      )}
+    </li>
+  );
+}
+
+function BadgeIcon({ kind }: { kind: BadgeKind }) {
+  if (kind === "indonesian") {
+    return (
+      <svg className="dx-badge-icon dx-flag" viewBox="0 0 16 12" aria-hidden="true">
+        <rect width="16" height="6" fill="#e70011" />
+        <rect y="6" width="16" height="6" fill="#fff" />
+        <rect x=".5" y=".5" width="15" height="11" fill="none" stroke="#d4d4d8" />
+      </svg>
+    );
+  }
+  if (kind === "in-our-group") {
+    return (
+      <svg className="dx-badge-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="9" cy="8" r="3" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0M16 5.5a3 3 0 0 1 0 5.5M17.5 14a5 5 0 0 1 3 5" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="dx-badge-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m5 12 4.5 4.5L19 7" />
+    </svg>
+  );
+}
+
 function LanguageDot({ language }: { language: string }) {
   return <span className="dx-lang-dot" style={{ background: LANGUAGE_COLOURS[language] ?? "#a1a1aa" }} aria-hidden="true" />;
 }
@@ -363,6 +447,11 @@ function DirectoryRow({ entry, locale }: { entry: DirectoryEntry; locale: Locale
             <span className="dx-owner">{owner}</span>
           </p>
           <p className="dx-desc">{entry.description}</p>
+          {entry.badges.length > 0 ? (
+            <ul className="dx-badges" aria-label={tx(locale, "Tanda", "Signals")}>
+              {entry.badges.map((badge) => <BadgeChip key={badge.kind} badge={badge} locale={locale} />)}
+            </ul>
+          ) : null}
           <p className="dx-tags">
             <span className={`dx-tag dx-tag-${entry.source}`}>{sourceTag[entry.source]}</span>
             {entry.track === "github" ? entry.labels.map((label) => <span key={label} className="dx-tag">{label}</span>) : null}

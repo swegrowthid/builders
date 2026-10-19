@@ -1,3 +1,4 @@
+import { BADGE_KINDS, PRODUCT_BADGES, type Badge, type BadgeKind } from "./badges";
 import type { GitHubRepositoryStats } from "./github";
 import { parseGitHubRepositoryUrl } from "./github";
 import { tx, type Locale } from "./locale";
@@ -49,6 +50,8 @@ export type DirectoryEntry = {
   description: string;
   /** Why a repo is listed, or the roles a product is asking for. */
   labels: string[];
+  /** Hand-set trust signals about the people around it — see `badges.ts`. */
+  badges: Badge[];
   language: string;
   stars: number | null;
   /** Where the name links — the repo, or the product's page here. */
@@ -85,6 +88,7 @@ export function repoEntry(
     owner: repo.owner,
     description: localized(repo.summary, locale),
     labels: repo.reasons.filter((reason) => reason !== "ours").map((reason) => reasonLabel(reason, locale)),
+    badges: repo.badges,
     language: repo.stats?.language || repo.language,
     stars: repo.stats ? repo.stats.stars : null,
     href: repoUrl(repo),
@@ -115,6 +119,7 @@ export function productEntries<P extends DirectoryProduct>(
     language: "",
     stars: null,
     href: page,
+    badges: PRODUCT_BADGES[project.slug] ?? [],
   };
   const entries: DirectoryEntry[] = [];
 
@@ -147,6 +152,8 @@ export type DirectoryFilters = {
   track: DirectoryTrack;
   /** Where entries come from — ours, recommended, or a builders' product. Empty for any. */
   source: DirectorySource | "";
+  /** Only entries carrying this badge. Empty for any. */
+  badge: BadgeKind | "";
   /** A language on the GitHub path, a role on the role path. Empty for any. */
   facet: string;
   q: string;
@@ -168,12 +175,21 @@ export function filterDirectory(entries: DirectoryEntry[], filters: DirectoryFil
   return entries.filter((entry) => {
     if (entry.track !== filters.track) return false;
     if (filters.source && entry.source !== filters.source) return false;
+    if (filters.badge && !entry.badges.some((badge) => badge.kind === filters.badge)) return false;
     if (facet && !facetsOf(entry).some((value) => searchable(value) === facet)) return false;
     if (!query) return true;
     return searchable(
       [entry.name, entry.owner, entry.description, entry.language, ...entry.labels].join(" "),
     ).includes(query);
   });
+}
+
+/** How many entries on one path carry each badge, in the order badges are defined. */
+export function badgeCounts(entries: DirectoryEntry[], track: DirectoryTrack): { kind: BadgeKind; count: number }[] {
+  return BADGE_KINDS.map((kind) => ({
+    kind,
+    count: entries.filter((entry) => entry.track === track && entry.badges.some((badge) => badge.kind === kind)).length,
+  })).filter(({ count }) => count > 0);
 }
 
 /** The chips for one path, most common first. */

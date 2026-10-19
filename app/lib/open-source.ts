@@ -1,3 +1,4 @@
+import type { Badge } from "./badges";
 import { tx, type Locale } from "./locale";
 
 /**
@@ -31,8 +32,6 @@ export type RepoList = (typeof REPO_LISTS)[number];
  */
 export const REPO_REASONS = [
   "ours",
-  "merged-pr",
-  "indonesian",
   "our-stack",
   "beginner-friendly",
   "local-impact",
@@ -46,6 +45,12 @@ export type OpenSourceRepo = {
   repo: string;
   list: RepoList;
   reasons: RepoReason[];
+  /**
+   * Trust signals about the people around it, set by hand — a friend has
+   * contributed, a maintainer is in our group, the maintainers are
+   * Indonesian. See `app/lib/badges.ts`.
+   */
+  badges: Badge[];
   /** What the project is, in one line. */
   summary: LocalizedText;
   /** Why it is on this list, in our own words. */
@@ -59,8 +64,6 @@ export type OpenSourceRepo = {
 
 const REASON_LABELS: Record<RepoReason, LocalizedText> = {
   ours: { id: "Milik kami", en: "Ours" },
-  "merged-pr": { id: "PR kami pernah di-merge", en: "We've had PRs merged" },
-  indonesian: { id: "Maintainer Indonesia", en: "Indonesian maintainers" },
   "our-stack": { id: "Stack yang kami pakai", en: "Part of our stack" },
   "beginner-friendly": { id: "Ramah pemula", en: "Beginner friendly" },
   "local-impact": { id: "Berdampak lokal", en: "Local impact" },
@@ -72,6 +75,7 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
     repo: "builders",
     list: "internal",
     reasons: ["ours", "beginner-friendly"],
+    badges: [{ kind: "in-our-group", people: ["zikrulihsan"] }],
     summary: {
       id: "Situs yang sedang kamu buka: direktori project yang bisa dikontribusikan.",
       en: "The site you are looking at: a directory of projects you can contribute to.",
@@ -89,6 +93,7 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
     repo: "first-contributions",
     list: "recommended",
     reasons: ["beginner-friendly"],
+    badges: [],
     summary: {
       id: "Latihan alur fork → branch → pull request dari nol, dengan panduan berbahasa Indonesia.",
       en: "Practise the fork → branch → pull request flow from zero, with a guide in Bahasa Indonesia.",
@@ -106,6 +111,7 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
     repo: "next.js",
     list: "recommended",
     reasons: ["our-stack"],
+    badges: [],
     summary: {
       id: "Framework React yang menjalankan situs ini.",
       en: "The React framework this site runs on.",
@@ -123,6 +129,7 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
     repo: "supabase",
     list: "recommended",
     reasons: ["our-stack"],
+    badges: [],
     summary: {
       id: "Database Postgres, auth, dan storage yang dipakai Builders.",
       en: "The Postgres database, auth, and storage Builders runs on.",
@@ -139,7 +146,8 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
     owner: "sastrawi",
     repo: "sastrawi",
     list: "recommended",
-    reasons: ["indonesian", "local-impact"],
+    reasons: ["local-impact"],
+    badges: [{ kind: "indonesian" }],
     summary: {
       id: "Library PHP untuk stemming bahasa Indonesia.",
       en: "A PHP library for stemming Bahasa Indonesia.",
@@ -156,7 +164,8 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
     owner: "IndoNLP",
     repo: "indonlu",
     list: "recommended",
-    reasons: ["indonesian", "local-impact"],
+    reasons: ["local-impact"],
+    badges: [{ kind: "indonesian" }],
     summary: {
       id: "Benchmark dan model untuk pemahaman bahasa Indonesia.",
       en: "Benchmarks and models for understanding Bahasa Indonesia.",
@@ -173,7 +182,8 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
     owner: "gojek",
     repo: "heimdall",
     list: "recommended",
-    reasons: ["indonesian"],
+    reasons: ["beginner-friendly"],
+    badges: [{ kind: "indonesian" }],
     summary: {
       id: "HTTP client Go dengan retry dan circuit breaker, dari tim engineering Gojek.",
       en: "A Go HTTP client with retries and circuit breaking, from Gojek's engineering team.",
@@ -191,6 +201,7 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
     repo: "excalidraw",
     list: "recommended",
     reasons: ["beginner-friendly"],
+    badges: [],
     summary: {
       id: "Papan gambar kolaboratif bergaya sketsa tangan.",
       en: "A collaborative whiteboard with a hand-drawn feel.",
