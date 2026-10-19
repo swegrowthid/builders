@@ -3756,7 +3756,8 @@ form button[aria-busy="true"]::after,
 .dx-badge > a, .dx-badge {
   align-items: center; border-radius: 99px; display: inline-flex; font-size: 12px; font-weight: 600; gap: 5px;
 }
-.dx-badge { border: 1px solid; padding: 2px 9px 2px 7px; }
+.dx-badge { border: 1px solid; max-width: 100%; padding: 2px 9px 2px 7px; white-space: nowrap; }
+.dx-badge span:not(.dx-badge-faces) { overflow: hidden; text-overflow: ellipsis; }
 .dx-badge > a { color: inherit; }
 .dx-badge > a:hover span:not(.dx-badge-faces) { text-decoration: underline; text-underline-offset: 2px; }
 .dx-badge-friend-contributed { background: #ecfdf3; border-color: #a7f3d0; color: #047857; }
@@ -3775,7 +3776,7 @@ form button[aria-busy="true"]::after,
 .dx-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 7px 0 0; }
 .dx-tag {
   border: 1px solid var(--dx-line); border-radius: 5px; color: var(--dx-muted); font-size: 11px;
-  line-height: 1; padding: 4px 6px;
+  line-height: 1; padding: 4px 6px; white-space: nowrap;
 }
 .dx-tag-internal { background: var(--dx-ink); border-color: var(--dx-ink); color: #fff; }
 .dx-tag-product { background: var(--dx-warm-soft); border-color: #fed7aa; color: var(--dx-warm); }
@@ -3786,7 +3787,7 @@ form button[aria-busy="true"]::after,
 .dx-roles { display: flex; flex-wrap: wrap; gap: 4px; }
 .dx-role {
   background: var(--dx-warm-soft); border-radius: 5px; color: var(--dx-warm); font-size: 12px;
-  font-weight: 550; padding: 3px 7px;
+  font-weight: 550; padding: 3px 7px; white-space: nowrap;
 }
 .dx-muted { color: var(--dx-faint); }
 .dx-cell-action { display: flex; justify-content: flex-end; }
@@ -3832,13 +3833,34 @@ form button[aria-busy="true"]::after,
   .dx-head h1 { font-size: 22px; }
   .dx-toolbar { align-items: stretch; flex-direction: column; gap: 8px; }
   .dx-search { max-width: none; }
+}
+
+/* The rows answer to the width of the results column, not of the screen:
+   beside the sidebar on a small laptop that column is as narrow as a phone,
+   and fixed language/stars/action columns left the project name a sliver.
+   Below ~760px the card stacks — project across the top, then a footer line
+   with language or roles, stars, and the button. */
+.dx-results { container-type: inline-size; min-width: 0; }
+@container (max-width: 760px) {
   .dx-row-head { display: none; }
-  .dx-row, .dx-table-role .dx-row { gap: 8px 12px; grid-template-columns: minmax(0, 1fr) auto; padding: 14px; }
+  .dx-row, .dx-table-role .dx-row {
+    column-gap: 14px; grid-template-columns: minmax(0, 1fr) auto auto; padding: 14px 16px; row-gap: 12px;
+  }
   .dx-cell-main { grid-column: 1 / -1; }
   .dx-desc { white-space: normal; }
-  .dx-cell-meta { padding-left: 48px; }
-  .dx-cell-stars { display: none; }
-  .dx-cell-action { grid-column: 2; grid-row: 2; }
+  .dx-cell-meta { grid-column: 1; padding-left: 48px; }
+  .dx-cell-stars { grid-column: 2; }
+  .dx-cell-stars:empty { display: none; }
+  /* The column header is gone, so the number says what it counts. */
+  .dx-cell-stars:not(:empty)::before { color: var(--dx-faint); content: "★ "; }
+  .dx-cell-action { grid-column: 3; }
+  .dx-table-role .dx-cell-action { grid-column: 2 / -1; }
+  .dx-row:not(.dx-row-head) .dx-cell-meta,
+  .dx-row:not(.dx-row-head) .dx-cell-stars,
+  .dx-row:not(.dx-row-head) .dx-cell-action { align-self: center; }
+}
+@container (max-width: 420px) {
+  .dx-cell-meta { padding-left: 0; }
 }
 
 /* ------------------------------------------------- header, directory look

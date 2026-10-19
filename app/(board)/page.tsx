@@ -478,7 +478,9 @@ function DirectoryRow({ entry, locale }: { entry: DirectoryEntry; locale: Locale
       </div>
 
       <div className="dx-cell-stars" role="cell">
-        {entry.stars !== null ? compactNumber(entry.stars, locale) : entry.track === "github" ? <span className="dx-muted">—</span> : null}
+        {/* Empty, not a dash, when GitHub has not answered: the cell then
+            disappears from a stacked card instead of reading "★ —". */}
+        {entry.stars !== null ? compactNumber(entry.stars, locale) : null}
       </div>
 
       <div className="dx-cell-action" role="cell">
