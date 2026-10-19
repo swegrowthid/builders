@@ -81,17 +81,21 @@ test("one path at a time, narrowed by its chip and by search, keeping the given 
     ...OPEN_SOURCE_REPOS.map((repo) => repoEntry(repo, "en")),
     ...productEntries(product({ openSeatCount: 1, openRoles: ["design"] }), describe, roleName, "en"),
   ];
-  const none = { facet: "", q: "" };
+  const none = { source: "", facet: "", q: "" };
   assert.deepEqual(filterDirectory(entries, { ...none, track: "role" }).map((entry) => entry.name), ["Tool"]);
   assert.deepEqual(
     filterDirectory(entries, { ...none, track: "github" }).map((entry) => entry.name),
     OPEN_SOURCE_REPOS.map((repo) => repo.repo),
   );
-  assert.deepEqual(filterDirectory(entries, { track: "github", facet: "go", q: "" }).map((entry) => entry.name), ["heimdall"]);
-  assert.deepEqual(filterDirectory(entries, { track: "role", facet: "DESIGN", q: "" }).map((entry) => entry.name), ["Tool"]);
-  assert.equal(filterDirectory(entries, { track: "role", facet: "QA", q: "" }).length, 0);
-  assert.ok(filterDirectory(entries, { track: "github", facet: "", q: "bahasa" }).length > 0);
-  assert.equal(filterDirectory(entries, { track: "github", facet: "", q: "nothing like this" }).length, 0);
+  assert.deepEqual(filterDirectory(entries, { ...none, track: "github", facet: "go" }).map((entry) => entry.name), ["heimdall"]);
+  assert.deepEqual(filterDirectory(entries, { ...none, track: "role", facet: "DESIGN" }).map((entry) => entry.name), ["Tool"]);
+  assert.equal(filterDirectory(entries, { ...none, track: "role", facet: "QA" }).length, 0);
+  assert.ok(filterDirectory(entries, { ...none, track: "github", q: "bahasa" }).length > 0);
+  assert.equal(filterDirectory(entries, { ...none, track: "github", q: "nothing like this" }).length, 0);
+  assert.deepEqual(
+    filterDirectory(entries, { ...none, track: "github", source: "internal" }).map((entry) => entry.source),
+    OPEN_SOURCE_REPOS.filter((repo) => repo.list === "internal").map(() => "internal"),
+  );
 });
 
 test("chips are the languages on the code path and the roles on the role path", () => {

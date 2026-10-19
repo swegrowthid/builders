@@ -32,7 +32,12 @@ export function isDirectoryTrack(value: string): value is DirectoryTrack {
   return (DIRECTORY_TRACKS as readonly string[]).includes(value);
 }
 
-export type DirectorySource = "internal" | "recommended" | "product";
+export const DIRECTORY_SOURCES = ["internal", "recommended", "product"] as const;
+export type DirectorySource = (typeof DIRECTORY_SOURCES)[number];
+
+export function isDirectorySource(value: string): value is DirectorySource {
+  return (DIRECTORY_SOURCES as readonly string[]).includes(value);
+}
 
 export type DirectoryEntry = {
   key: string;
@@ -140,6 +145,8 @@ export function productEntries<P extends DirectoryProduct>(
 
 export type DirectoryFilters = {
   track: DirectoryTrack;
+  /** Where entries come from — ours, recommended, or a builders' product. Empty for any. */
+  source: DirectorySource | "";
   /** A language on the GitHub path, a role on the role path. Empty for any. */
   facet: string;
   q: string;
@@ -160,6 +167,7 @@ export function filterDirectory(entries: DirectoryEntry[], filters: DirectoryFil
   const facet = searchable(filters.facet);
   return entries.filter((entry) => {
     if (entry.track !== filters.track) return false;
+    if (filters.source && entry.source !== filters.source) return false;
     if (facet && !facetsOf(entry).some((value) => searchable(value) === facet)) return false;
     if (!query) return true;
     return searchable(
