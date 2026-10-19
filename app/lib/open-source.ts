@@ -16,7 +16,8 @@ import { tx, type Locale } from "./locale";
  *   - `recommended` — somebody else's repositories that we vouch for, each with
  *     the reasons that earned it the place.
  *
- * Live numbers (stars, last push) come from GitHub through
+ * The directory on the home page (`app/lib/directory.ts`) lists these first,
+ * ours before the recommendations. Live numbers (stars, language) come from GitHub through
  * `app/lib/open-source-live.ts`; everything here is what the page falls back
  * to when GitHub cannot be reached, so the listing never depends on it.
  */
@@ -65,11 +66,6 @@ const REASON_LABELS: Record<RepoReason, LocalizedText> = {
   "local-impact": { id: "Berdampak lokal", en: "Local impact" },
 };
 
-const LIST_LABELS: Record<RepoList, LocalizedText> = {
-  internal: { id: "Open source kami", en: "Our open source" },
-  recommended: { id: "Rekomendasi kami", en: "Recommended by us" },
-};
-
 export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
   {
     owner: "zikrulihsan",
@@ -77,8 +73,8 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
     list: "internal",
     reasons: ["ours", "beginner-friendly"],
     summary: {
-      id: "Situs yang sedang kamu buka: katalog open source, produk builders, dan komunitas kontributornya.",
-      en: "The site you are looking at: an open source catalogue, builders' products, and their contributor community.",
+      id: "Situs yang sedang kamu buka: direktori project yang bisa dikontribusikan.",
+      en: "The site you are looking at: a directory of projects you can contribute to.",
     },
     why: {
       id: "Kami yang me-review sendiri, jadi PR pertamamu dibaca orang yang kenal kamu. Next.js + Supabase, MIT.",
@@ -209,21 +205,6 @@ export const OPEN_SOURCE_REPOS: OpenSourceRepo[] = [
   },
 ];
 
-export type RepoFilters = {
-  list: RepoList | "";
-  reason: RepoReason | "";
-  language: string;
-  q: string;
-};
-
-export function isRepoList(value: string): value is RepoList {
-  return (REPO_LISTS as readonly string[]).includes(value);
-}
-
-export function isRepoReason(value: string): value is RepoReason {
-  return (REPO_REASONS as readonly string[]).includes(value);
-}
-
 export function repoSlug(repo: Pick<OpenSourceRepo, "owner" | "repo">): string {
   return `${repo.owner}/${repo.repo}`;
 }
@@ -249,73 +230,6 @@ export function reasonLabel(reason: RepoReason, locale: Locale): string {
   return tx(locale, label.id, label.en);
 }
 
-export function listLabel(list: RepoList, locale: Locale): string {
-  const label = LIST_LABELS[list];
-  return tx(locale, label.id, label.en);
-}
-
 export function localized(text: LocalizedText, locale: Locale): string {
   return tx(locale, text.id, text.en);
-}
-
-/** Every language in the catalogue, most common first. */
-export function repoLanguages(repos: Pick<OpenSourceRepo, "language">[]): { value: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const { language } of repos) {
-    if (!language) continue;
-    counts.set(language, (counts.get(language) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
-}
-
-/**
- * The catalogue narrowed by the URL's filters.
- *
- * Internal repos always lead: they are where a first PR is likeliest to be
- * reviewed by somebody who will answer. Within each list the curated order is
- * kept — it is an editorial order, not an accident of the array.
- */
-export function filterRepos<T extends OpenSourceRepo>(repos: T[], filters: RepoFilters): T[] {
-  const query = searchable(filters.q);
-  const language = searchable(filters.language);
-
-  return repos
-    .filter((repo) => {
-      if (filters.list && repo.list !== filters.list) return false;
-      if (filters.reason && !repo.reasons.includes(filters.reason)) return false;
-      if (language && searchable(repo.language) !== language) return false;
-      if (query) {
-        const haystack = searchable(
-          [
-            repo.owner,
-            repo.repo,
-            repo.language,
-            repo.summary.id,
-            repo.summary.en,
-            repo.why.id,
-            repo.why.en,
-            ...repo.topics,
-          ].join(" "),
-        );
-        if (!haystack.includes(query)) return false;
-      }
-      return true;
-    })
-    .map((repo, index) => ({ repo, index }))
-    .sort((a, b) => listRank(a.repo.list) - listRank(b.repo.list) || a.index - b.index)
-    .map(({ repo }) => repo);
-}
-
-function listRank(list: RepoList): number {
-  return list === "internal" ? 0 : 1;
-}
-
-function searchable(value: string): string {
-  return value
-    .toLocaleLowerCase("id")
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim();
 }

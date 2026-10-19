@@ -14,7 +14,7 @@ import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
 
 /** Which top-level section the current page belongs to. */
-export type Section = "home" | "open-source" | "explore" | "community" | "people" | "about" | "feedback" | "";
+export type Section = "home" | "explore" | "people" | "about" | "feedback" | "";
 
 export function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return (
@@ -36,23 +36,18 @@ export function Brand({ footer = false, locale }: { footer?: boolean; locale: Lo
 /*
  * The main menu.
  *
- * Open source leads because helping software engineers make their first
- * contribution is what the site is for now; builders' own products follow,
- * then the people. The brand is the way home, so Home is not repeated here.
- * About and Feedback stay in the menu rather than only the footer, which is
- * the part of a page nobody scrolls to when they are lost.
+ * The directory is the site, so the menu is short: the directory itself, then
+ * the two pages that answer for the site — what this is, and where to say it
+ * is broken. Listing a project is the header's button, not a menu entry.
  */
 const LINKS: { href: string; label: string; labelId: string; key: Section; icon: HeaderIconName }[] = [
-  { href: "/open-source", label: "Open Source", labelId: "Open Source", key: "open-source", icon: "code" },
-  { href: "/explore", label: "Products", labelId: "Produk", key: "explore", icon: "explore" },
-  { href: "/community", label: "Community", labelId: "Komunitas", key: "community", icon: "people" },
+  { href: "/", label: "Directory", labelId: "Direktori", key: "home", icon: "home" },
   { href: "/about", label: "About", labelId: "Tentang", key: "about", icon: "about" },
   { href: "/feedback", label: "Feedback", labelId: "Masukan", key: "feedback", icon: "feedback" },
 ];
 
 type HeaderIconName =
   | "home"
-  | "code"
   | "explore"
   | "people"
   | "about"
@@ -69,7 +64,6 @@ type HeaderIconName =
 function HeaderIcon({ name }: { name: HeaderIconName }) {
   const paths: Record<HeaderIconName, React.ReactNode> = {
     home: <><path d="m3 11 9-7 9 7" /><path d="M5.5 10v10h13V10M9 20v-6h6v6" /></>,
-    code: <><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></>,
     explore: <><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" /></>,
     people: <><path d="M16 20v-1.5a4.5 4.5 0 0 0-4.5-4.5h-3A4.5 4.5 0 0 0 4 18.5V20" /><circle cx="10" cy="7" r="3.5" /><path d="M17 11a3 3 0 0 0 0-6M19 14.5a4 4 0 0 1 2 3.5v2" /></>,
     about: <><circle cx="12" cy="12" r="9" /><path d="M12 11.5v5M12 7.8h.01" /></>,
@@ -204,15 +198,15 @@ async function VisitorHeader({
                 {waiting > 0 ? <span className="notification-dot">{waiting}</span> : null}
               </Link>
               <AccountMenu viewer={viewer} waiting={waiting} locale={locale} />
-              <Link className="primary-action" href="/open-source">
-                {tx(locale, "Mulai kontribusi", "Start contributing")}
+              <Link className="primary-action" href="/new">
+                <span aria-hidden="true">+</span> {tx(locale, "Daftarkan project", "List a project")}
               </Link>
             </>
           ) : (
             <>
               <Link className="nav-login" href={signInPath(destination)}>{tx(locale, "Masuk", "Sign in")}</Link>
-              <Link className="primary-action" href="/open-source">
-                {tx(locale, "Mulai kontribusi", "Start contributing")}
+              <Link className="primary-action" href="/new">
+                <span aria-hidden="true">+</span> {tx(locale, "Daftarkan project", "List a project")}
               </Link>
             </>
           )}
@@ -267,7 +261,7 @@ function AccountMenu({ viewer, waiting, locale }: { viewer: Viewer; waiting: num
           </Link>
           <Link href="/new">
             <HeaderIcon name="add" />
-            <span>{tx(locale, "Daftarkan produk", "List a product")}</span>
+            <span>{tx(locale, "Daftarkan project", "List a project")}</span>
           </Link>
           <Link href="/account/language">
             <HeaderIcon name="language" />
@@ -325,7 +319,7 @@ function MobileHeaderMenu({
 
         <Link className="mobile-project-action" href="/new">
           <HeaderIcon name="add" />
-          <span>{tx(locale, "Daftarkan produk", "List a product")}</span>
+          <span>{tx(locale, "Daftarkan project", "List a project")}</span>
         </Link>
 
         {viewer ? (
@@ -397,13 +391,10 @@ export async function SiteFooter() {
   return (
     <footer>
       <Brand footer locale={locale} />
-      <p>{tx(locale, "Membantu software engineer Indonesia mengirim kontribusi open source pertamanya — dan produk builders mendapat bantuan yang dibutuhkan.", "Helping Indonesian software engineers send their first open source contribution — and builders' products get the help they need.")}</p>
+      <p>{tx(locale, "Direktori project yang bisa kamu kontribusikan.", "A directory of projects you can contribute to.")}</p>
       <nav aria-label={tx(locale, "Navigasi footer", "Footer navigation")}>
-        <Link href="/">{tx(locale, "Beranda", "Home")}</Link>
-        <Link href="/open-source">Open Source</Link>
-        <Link href="/explore">{tx(locale, "Produk", "Products")}</Link>
-        <Link href="/community">{tx(locale, "Komunitas", "Community")}</Link>
-        <Link href="/people">Talent Pool</Link>
+        <Link href="/">{tx(locale, "Direktori", "Directory")}</Link>
+        <Link href="/new">{tx(locale, "Daftarkan project", "List a project")}</Link>
         <Link href="/about">{tx(locale, "Tentang Kami", "About Us")}</Link>
         <Link href="/feedback">{tx(locale, "Masukan", "Feedback")}</Link>
         <Link href="/privacy">{tx(locale, "Privasi", "Privacy")}</Link>

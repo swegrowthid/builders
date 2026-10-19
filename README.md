@@ -3,16 +3,13 @@
 [![CI](https://github.com/zikrulihsan/ahsanproject/actions/workflows/ci.yml/badge.svg)](https://github.com/zikrulihsan/ahsanproject/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Helping software engineers send their first open source contribution — and
-the products builders make get the help they need.
+A directory of projects you can contribute to. One list, one search box, and
+a button on every row that opens where contributing starts.
 
-The site lists three things: open source repositories we maintain, open source
-repositories we recommend (each with the reason it is listed — we have had PRs
-merged there, the maintainers are Indonesian, it is part of our stack, it is
-beginner friendly), and the products builders in the community want help with.
-A community page groups the people: would-be contributors (anyone who has put a
-GitHub account on their profile) and founders (anyone who owns a listed
-product).
+The list holds three kinds of project: open source repositories we maintain,
+open source repositories we recommend (each with the reason it is listed), and
+products builders have listed here that are asking for help — either by taking
+pull requests on GitHub or by naming a role they need.
 
 The curated repositories live in `app/lib/open-source.ts`. Adding one — with
 its reason — is a pull request, and a good first one.
@@ -162,10 +159,8 @@ match it.
 
 | Route | What it is |
 | --- | --- |
-| `/` | Home — our open source, our recommendations, the path to a first PR, the community, and products that need help |
-| `/open-source` | The curated repo catalogue, filtered by list (`?list=internal\|recommended`), reason, language, and search |
-| `/community` | Would-be contributors (profiles with GitHub) and founders (`?group=founders`) |
-| `/explore` | Builders' products — the board, narrowed by level, kind, topic, role, search |
+| `/` | The directory — every project you can contribute to, by type (`?type=internal\|recommended\|product`) and search (`?q=`) |
+| `/explore` | The older project board, narrowed by level, kind, topic, role, search. No longer in the menu |
 | `/projects/<slug>` | One project: the story, what it is doing now, the help it wants, its journey |
 | `/u/<username>` | One person: what they are building, what they helped build, their trail |
 | `/new` | Add a project. One field: the link. Its page supplies the name, description and icon; the brief and everything else is optional and can be added later |
@@ -189,12 +184,13 @@ match it.
 - `app/lib/next-steps.ts` — the steps `/get-started` lists. Named things with a
   link at each, never a percentage: a profile is not a form to fill to 100%.
 - `app/lib/open-source.ts` — the curated repositories, why each is listed,
-  and how the catalogue is filtered. `app/lib/open-source-live.ts` adds
+  and how starter issues are linked. `app/lib/open-source-live.ts` adds
   GitHub's stars and last push, cached for hours; set `GITHUB_TOKEN` (any
   read-only token) to lift GitHub's anonymous rate limit. Without it a refused
   request costs that card its numbers and nothing else.
-- `app/lib/community.ts` — who counts as a contributor (a GitHub account on
-  the profile) and who as a founder (owns a listed product).
+- `app/lib/directory.ts` — turns repos and products into the directory's one
+  row shape, decides which products belong (only those asking for something),
+  and filters by tab and search.
 - `app/lib/stages.ts` — the levels (`idea → building → live`, plus `resting`)
   and what each one requires. No level asks for a team: working alone is not a
   lesser project. What they ask for is evidence the work has moved — a link, or
