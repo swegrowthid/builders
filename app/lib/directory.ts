@@ -12,40 +12,46 @@ import {
 /**
  * The directory: every project somebody can contribute to, in one list.
  *
- * Three kinds of entry, one shape, so the page is a single list with tabs
- * rather than three sections to scroll past:
+ * Split by *how* you contribute, because that is the first thing somebody
+ * decides and the two paths do not overlap:
  *
- *   - `internal` — open source repositories we maintain;
- *   - `recommended` — somebody else's open source we vouch for;
- *   - `product` — a product listed on Builders that is asking for help, either
- *     by taking pull requests or by naming a role it needs.
+ *   - `github` — code, through a pull request on GitHub. Open source we
+ *     maintain, open source we recommend, and builders' products that take PRs.
+ *   - `role` — joining a builders' product in a named role (design, product,
+ *     research, content, engineering…), asked for and answered on this site.
+ *
+ * A product that does both is listed once on each path, with the action that
+ * path needs. `source` says where an entry comes from, as a label.
  *
  * Pure, so the unit tests read it directly.
  */
-export const DIRECTORY_KINDS = ["internal", "recommended", "product"] as const;
-export type DirectoryKind = (typeof DIRECTORY_KINDS)[number];
+export const DIRECTORY_TRACKS = ["github", "role"] as const;
+export type DirectoryTrack = (typeof DIRECTORY_TRACKS)[number];
 
-export function isDirectoryKind(value: string): value is DirectoryKind {
-  return (DIRECTORY_KINDS as readonly string[]).includes(value);
+export function isDirectoryTrack(value: string): value is DirectoryTrack {
+  return (DIRECTORY_TRACKS as readonly string[]).includes(value);
 }
+
+export type DirectorySource = "internal" | "recommended" | "product";
 
 export type DirectoryEntry = {
   key: string;
-  kind: DirectoryKind;
+  track: DirectoryTrack;
+  source: DirectorySource;
   name: string;
   /** Who it belongs to: a GitHub owner, or the founder's name. */
   owner: string;
   description: string;
-  /** Short labels: why it is listed, or what help it asks for. */
+  /** Why a repo is listed, or the roles a product is asking for. */
   labels: string[];
   language: string;
   stars: number | null;
   /** Where the name links — the repo, or the product's page here. */
   href: string;
-  /** The one action that matters: where contributing starts. */
-  contributeHref: string;
-  contributeLabel: string;
-  /** True when `contributeHref` leaves this site. */
+  /** The one action that matters on this path. */
+  actionHref: string;
+  actionLabel: string;
+  /** True when `actionHref` leaves this site. */
   external: boolean;
 };
 
@@ -59,7 +65,6 @@ export type DirectoryProduct = {
   openForGitHubContributions: boolean;
   openSeatCount: number;
   openRoles: string[];
-  tags: string[];
   owner: { name: string };
 };
 
@@ -69,7 +74,8 @@ export function repoEntry(
 ): DirectoryEntry {
   return {
     key: `repo:${repo.owner}/${repo.repo}`,
-    kind: repo.list,
+    track: "github",
+    source: repo.list,
     name: repo.repo,
     owner: repo.owner,
     description: localized(repo.summary, locale),
@@ -77,46 +83,59 @@ export function repoEntry(
     language: repo.stats?.language || repo.language,
     stars: repo.stats ? repo.stats.stars : null,
     href: repoUrl(repo),
-    contributeHref: starterIssuesUrl(repo),
-    contributeLabel: tx(locale, "Lihat isu pemula", "Starter issues"),
+    actionHref: starterIssuesUrl(repo),
+    actionLabel: tx(locale, "Isu pemula di GitHub", "Starter issues on GitHub"),
     external: true,
   };
 }
 
 /**
- * A product, or null when it is not asking for anything.
- *
- * A product that takes pull requests sends people straight to its GitHub
- * issues; one that only names roles sends them to its page here, where the
- * roles are and where they can offer to take one.
+ * A product's entries: one on the GitHub path when it takes pull requests on
+ * a GitHub repository, one on the role path when it names roles it needs, and
+ * none when it asks for nothing.
  */
-export function productEntry<P extends DirectoryProduct>(
+export function productEntries<P extends DirectoryProduct>(
   project: P,
   describe: (project: P) => string,
   roleName: (role: string) => string,
   locale: Locale,
-): DirectoryEntry | null {
+): DirectoryEntry[] {
   const repository = project.openForGitHubContributions ? parseGitHubRepositoryUrl(project.repoUrl) : null;
-  if (!repository && project.openSeatCount === 0) return null;
-
   const page = `/projects/${project.slug}`;
-  return {
-    key: `product:${project.id}`,
-    kind: "product",
+  const base = {
+    source: "product" as const,
     name: project.title,
     owner: project.owner.name,
     description: describe(project),
-    labels: [
-      ...(repository ? [tx(locale, "Terbuka untuk PR", "Open to PRs")] : []),
-      ...project.openRoles.slice(0, 2).map(roleName),
-    ],
     language: "",
     stars: null,
     href: page,
-    contributeHref: repository ? `${repository.url}/issues` : page,
-    contributeLabel: repository ? tx(locale, "Lihat isu", "Open issues") : tx(locale, "Lihat kebutuhan", "See what's needed"),
-    external: Boolean(repository),
   };
+  const entries: DirectoryEntry[] = [];
+
+  if (repository) {
+    entries.push({
+      ...base,
+      key: `product:${project.id}:github`,
+      track: "github",
+      labels: [],
+      actionHref: `${repository.url}/issues`,
+      actionLabel: tx(locale, "Isu di GitHub", "Issues on GitHub"),
+      external: true,
+    });
+  }
+  if (project.openSeatCount > 0) {
+    entries.push({
+      ...base,
+      key: `product:${project.id}:role`,
+      track: "role",
+      labels: project.openRoles.map(roleName),
+      actionHref: `${page}?tab=collaboration#help-heading`,
+      actionLabel: tx(locale, "Lihat peran", "See the roles"),
+      external: false,
+    });
+  }
+  return entries;
 }
 
 /**
@@ -125,11 +144,11 @@ export function productEntry<P extends DirectoryProduct>(
  */
 export function filterDirectory(
   entries: DirectoryEntry[],
-  filters: { kind: DirectoryKind | ""; q: string },
+  filters: { track: DirectoryTrack | ""; q: string },
 ): DirectoryEntry[] {
   const query = searchable(filters.q);
   return entries.filter((entry) => {
-    if (filters.kind && entry.kind !== filters.kind) return false;
+    if (filters.track && entry.track !== filters.track) return false;
     if (!query) return true;
     return searchable(
       [entry.name, entry.owner, entry.description, entry.language, ...entry.labels].join(" "),
@@ -137,10 +156,16 @@ export function filterDirectory(
   });
 }
 
-export function kindLabel(kind: DirectoryKind, locale: Locale): string {
-  if (kind === "internal") return tx(locale, "Open source kami", "Our open source");
-  if (kind === "recommended") return tx(locale, "Rekomendasi", "Recommended");
-  return tx(locale, "Produk builders", "Builders' products");
+export function sourceLabel(source: DirectorySource, locale: Locale): string {
+  if (source === "internal") return tx(locale, "Open source kami", "Our open source");
+  if (source === "recommended") return tx(locale, "Rekomendasi", "Recommended");
+  return tx(locale, "Produk builders", "Builders' product");
+}
+
+export function trackLabel(track: DirectoryTrack, locale: Locale): string {
+  return track === "github"
+    ? tx(locale, "Open source di GitHub", "Open source on GitHub")
+    : tx(locale, "Peran lain", "Other roles");
 }
 
 function searchable(value: string): string {

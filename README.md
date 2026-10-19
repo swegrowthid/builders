@@ -159,7 +159,7 @@ match it.
 
 | Route | What it is |
 | --- | --- |
-| `/` | The directory — every project you can contribute to, by type (`?type=internal\|recommended\|product`) and search (`?q=`) |
+| `/` | The directory — every project you can contribute to, split into open source on GitHub and other roles (`?track=github\|role`), with search (`?q=`) |
 | `/explore` | The older project board, narrowed by level, kind, topic, role, search. No longer in the menu |
 | `/projects/<slug>` | One project: the story, what it is doing now, the help it wants, its journey |
 | `/u/<username>` | One person: what they are building, what they helped build, their trail |
@@ -188,9 +188,10 @@ match it.
   GitHub's stars and last push, cached for hours; set `GITHUB_TOKEN` (any
   read-only token) to lift GitHub's anonymous rate limit. Without it a refused
   request costs that card its numbers and nothing else.
-- `app/lib/directory.ts` — turns repos and products into the directory's one
-  row shape, decides which products belong (only those asking for something),
-  and filters by tab and search.
+- `app/lib/directory.ts` — splits the directory by how you contribute: code
+  through a pull request on GitHub (our repos, recommended repos, products
+  open to PRs), or another role on a builders' product. A product doing both
+  is listed once on each path; one asking for nothing is left out.
 - `app/lib/stages.ts` — the levels (`idea → building → live`, plus `resting`)
   and what each one requires. No level asks for a team: working alone is not a
   lesser project. What they ask for is evidence the work has moved — a link, or
