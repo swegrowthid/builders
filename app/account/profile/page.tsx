@@ -3,7 +3,9 @@ import Link from "@/app/components/responsive-link";
 import { redirect } from "next/navigation";
 import { SiteFooter, SiteHeader } from "../../components/shell";
 import { ProfileForm, type EditableProfile } from "../../components/profile-form";
-import { listPeople } from "../../lib/data";
+import { listOssContributionsOf, listPeople } from "../../lib/data";
+import { OssAddForm, OssRecordEmpty, OssRecordList } from "../../components/oss-record";
+import { githubHandle } from "../../lib/oss";
 import { termSuggestions } from "../../lib/people";
 import { readPublicly } from "../../lib/public-read";
 import { currentViewer, type Viewer } from "../../lib/session";
@@ -30,7 +32,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function EditProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ returnTo?: string | string[] }>;
+  searchParams: Promise<{ returnTo?: string | string[]; oss?: string | string[] }>;
 }) {
   const [viewer, locale] = await Promise.all([currentViewer(), currentLocale()]);
   if (!viewer) redirect(signInPath("/account/profile"));
@@ -42,7 +44,12 @@ export default async function EditProfilePage({
 
   // Suggestions only. If the directory cannot be read the form still works —
   // it just stops proposing the words other people already use.
-  const people = await readPublicly("profile term suggestions", () => listPeople(400), []);
+  const [people, records] = await Promise.all([
+    readPublicly("profile term suggestions", () => listPeople(400), []),
+    readPublicly("open source record in the editor", () => listOssContributionsOf(viewer.id), []),
+  ]);
+  const ossStatus = typeof query.oss === "string" ? query.oss : "";
+  const handle = githubHandle(viewer.github);
 
   return (
     <>
@@ -57,6 +64,31 @@ export default async function EditProfilePage({
           {tx(locale, "Inilah yang dilihat orang di ", "This is what people see on ")}<Link href={`/u/${viewer.username}`}>{tx(locale, "halaman portofoliomu", "your portfolio page")}</Link>{" "}
           {tx(locale, "dan digunakan untuk menemukanmu di ", "and use to find you in the ")}<Link href="/people">talent pool</Link>{tx(locale, ", tempat recruiter, hiring manager, dan pembangun tim mencari talent berdasarkan bukti pengalaman. Kamu dapat memperbaruinya kapan saja.", ", where recruiters, hiring managers, and team builders look for talent through proof of experience. You can update it at any time.")}
         </p>
+
+        {/* First, because it is what the directory is built from: every repo
+            listed here becomes a badge on that repo's row. */}
+        <section id="open-source" className="oss-editor" aria-labelledby="oss-editor-title">
+          <h2 id="oss-editor-title">{tx(locale, "Kontribusi open source", "Open source contributions")}</h2>
+          <p>
+            {tx(
+              locale,
+              "Repo yang pernah kamu kontribusi atau kamu maintain. Masing-masing jadi badge di direktori — \"teman pernah kontribusi\" atau \"maintainer di grup kita\" — lengkap dengan fotomu.",
+              "Repos you have contributed to or maintain. Each one becomes a badge in the directory — \"a friend has contributed\" or \"maintainer in our group\" — with your picture.",
+            )}
+          </p>
+          {!handle ? (
+            <p className="oss-editor-note">
+              {tx(locale, "Isi GitHub-mu di bawah supaya fotomu muncul di badge dan orang bisa melihat PR-mu.", "Add your GitHub below so your picture shows on badges and people can see your PRs.")}{" "}
+              <a href="#contact">{tx(locale, "Isi GitHub", "Add GitHub")}</a>
+            </p>
+          ) : null}
+          {records.value.length > 0 ? (
+            <OssRecordList records={records.value} handle={handle} editable locale={locale} />
+          ) : (
+            <OssRecordEmpty self={false} locale={locale} />
+          )}
+          <OssAddForm returnTo="/account/profile" status={ossStatus} locale={locale} />
+        </section>
 
         <ProfileForm
           profile={toEditable(viewer)}

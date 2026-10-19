@@ -186,6 +186,17 @@ export type FeedbackRow = {
   created_at: string;
 };
 
+/** 20261020000000_oss_contributions.sql — feeds the directory's people badges. */
+export type OssContributionRow = {
+  id: number;
+  user_id: string;
+  /** `owner/name`, lower-cased. */
+  repo: string;
+  /** contributor | maintainer */
+  relation: string;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -260,6 +271,12 @@ export type Database = {
         // read in the Supabase dashboard rather than by any page here — the
         // table grants neither role anything. Same reasoning as `notices`.
         Insert: never;
+        Update: never;
+      };
+      oss_contributions: {
+        Row: OssContributionRow;
+        Insert: Pick<OssContributionRow, "user_id" | "repo"> & Partial<Pick<OssContributionRow, "relation">>;
+        // No update policy: changing a row is removing it and adding another.
         Update: never;
       };
     };

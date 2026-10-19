@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "@/app/components/responsive-link";
 import { redirect } from "next/navigation";
 import { setNow } from "../actions";
+import { OssAddForm } from "../components/oss-record";
 import { SiteFooter, SiteHeader } from "../components/shell";
 import { StageBadge } from "../components/pieces";
 import { ProjectLogo } from "../components/project-logo";
 import { SubmitButton } from "../components/submit-button";
 import { MAXIMUM } from "../lib/brief";
-import { getPortfolio, type ProjectSummary } from "../lib/data";
+import { getPortfolio, listOssContributionsOf, type ProjectSummary } from "../lib/data";
+import { readPublicly } from "../lib/public-read";
 import { nextSteps, remainingSteps, type NextStep } from "../lib/next-steps";
 import { currentViewer } from "../lib/session";
 import { signInPath } from "../lib/urls";
@@ -25,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const locale = await currentLocale();
   return {
     title: tx(locale, "Langkah berikutnya — Builders", "Next steps — Builders"),
-    description: tx(locale, "Langkah yang tersisa agar proyekmu terlihat dan profilmu mudah ditemukan.", "What remains to make your projects visible and your profile discoverable."),
+    description: tx(locale, "Tiga langkah sebelum kontribusi pertamamu: GitHub, repo yang pernah kamu kontribusi, dan profilmu.", "Three steps before your first contribution: GitHub, the repos you have contributed to, and your profile."),
     robots: { index: false },
   };
 }
@@ -33,14 +35,14 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Where signing in lands, until there is nothing left to do here.
  *
- * A named list, not a progress bar: `docs/redesign-showcase.md` threw the
- * brief's completeness percentage out because a number turns a story into a
- * form to finish, and that argument does not stop being true one page over.
- * Each line says what it is for and links straight at the thing that does it.
+ * Three numbered steps that put a new member on the directory's map — GitHub,
+ * their open source record, who they are — with the record's form right here
+ * rather than a link away, because it is the step people skip when it costs a
+ * page. Product steps follow for founders, offered and never owed.
  *
  * Nothing here blocks anybody. Every step can be skipped, and once none are
- * owed the page forwards to the board instead of standing in the way of every
- * future sign-in — `?all=1` keeps it reachable on purpose from the menu.
+ * owed the page forwards to the directory instead of standing in the way of
+ * every future sign-in — `?all=1` keeps it reachable on purpose from the menu.
  */
 export default async function StartPage({
   searchParams,
@@ -52,9 +54,13 @@ export default async function StartPage({
 
   const query = (await searchParams) ?? {};
   const keepOpen = query.all === "1";
+  const ossStatus = typeof query.oss === "string" ? query.oss : "";
 
-  const { owned, contributing } = await getPortfolio(viewer);
-  const steps = nextSteps({ person: viewer, owned, contributing, locale });
+  const [{ owned }, records] = await Promise.all([
+    getPortfolio(viewer),
+    readPublicly("open source record on get-started", () => listOssContributionsOf(viewer.id), []),
+  ]);
+  const steps = nextSteps({ person: viewer, owned, ossCount: records.value.length, locale });
   const remaining = remainingSteps(steps);
   if (remaining.length === 0 && !keepOpen) redirect("/");
 
@@ -65,29 +71,48 @@ export default async function StartPage({
     <>
       <SiteHeader returnTo="/get-started" />
 
-      <main id="main-content" className="page-narrow start-page">
-        <p className="eyebrow">
-          <span /> {tx(locale, "Langkah berikutnya", "Next steps")}
-        </p>
-        <h1>{tx(locale, `Halo, ${firstName}.`, `Hello, ${firstName}.`)}</h1>
-        <p className="lede">
-          {remaining.length === 0
-            ? tx(locale, "Kamu telah menyelesaikan semua langkah. Gunakan pilihan di bawah untuk memperbaruinya kembali.", "You have completed all the steps. Use the options below to update them again.")
-            : tx(locale, `${remaining.length} langkah tersisa agar proyekmu terlihat dan profilmu mudah ditemukan. Tidak ada yang wajib diselesaikan sekarang.`, `${remaining.length} steps remain to make your projects visible and your profile discoverable. None are required right now.`)}
-        </p>
+      <main id="main-content" className="dx-page ob-page">
+        <header className="ob-head">
+          <p className="ob-kicker">{tx(locale, "Mulai di Builders", "Getting started")}</p>
+          <h1>{tx(locale, `Halo, ${firstName}.`, `Hello, ${firstName}.`)}</h1>
+          <p>
+            {remaining.length === 0
+              ? tx(locale, "Semua langkah sudah selesai. Saatnya pilih project dari direktori.", "Every step is done. Time to pick a project from the directory.")
+              : tx(
+                  locale,
+                  `${remaining.length} langkah lagi supaya kamu tercatat di direktori — dan pemula lain tahu kamu bisa ditanya.`,
+                  `${remaining.length} more ${remaining.length === 1 ? "step" : "steps"} to put you on the directory — so newcomers know they can ask you.`,
+                )}
+          </p>
+        </header>
 
-        <ol className="next-steps">
-          {owed.map((step) => (
-            <StepRow key={step.id} step={step} locale={locale} />
+        <ol className="ob-steps">
+          {owed.map((step, index) => (
+            <StepRow key={step.id} step={step} index={index + 1} locale={locale}>
+              {step.id === "oss" ? <OssAddForm returnTo="/get-started?all=1" status={ossStatus} locale={locale}>
+                  {records.value.length > 0 ? (
+                    <small>
+                      {tx(locale, `${records.value.length} repo tercatat.`, `${records.value.length} ${records.value.length === 1 ? "repo" : "repos"} listed.`)}{" "}
+                      <Link href="/account/profile#open-source">{tx(locale, "Kelola", "Manage")}</Link>
+                    </small>
+                  ) : null}
+                </OssAddForm> : null}
+            </StepRow>
           ))}
         </ol>
 
+        <div className="ob-next">
+          <div>
+            <strong>{tx(locale, "Lalu: pilih project pertamamu", "Then: pick your first project")}</strong>
+            <span>{tx(locale, "Kode di GitHub atau peran lain — semuanya ada di direktori.", "Code on GitHub or another role — it is all in the directory.")}</span>
+          </div>
+          <Link className="dx-action" href="/">{tx(locale, "Buka direktori", "Open the directory")} <span aria-hidden="true">→</span></Link>
+        </div>
+
         {extras.length > 0 ? (
-          <section className="next-step-optional" aria-labelledby="optional-heading">
-            <h2 id="optional-heading" className="section-title">
-              {tx(locale, "Jika kamu membutuhkannya", "If you need it")}
-            </h2>
-            <ol className="next-steps">
+          <section className="ob-extra" aria-labelledby="optional-heading">
+            <h2 id="optional-heading">{tx(locale, "Untuk founder", "For founders")}</h2>
+            <ol className="ob-steps ob-steps-quiet">
               {extras.map((step) => (
                 <StepRow key={step.id} step={step} locale={locale} />
               ))}
@@ -95,26 +120,19 @@ export default async function StartPage({
           </section>
         ) : null}
 
-        <section aria-labelledby="projects-heading">
-          <h2 id="projects-heading" className="section-title">
-            {tx(locale, "Proyekmu", "Your projects")}
-          </h2>
-
-          {owned.length === 0 ? (
-            <p className="muted">
-              {tx(locale, "Belum ada apa pun di sini.", "Nothing here yet.")} <Link href="/new">{tx(locale, "Tampilkan proyek pertamamu", "Show your first project")}</Link>—{tx(locale, "sebuah ide saja sudah cukup.", "an idea is enough.")}
-            </p>
-          ) : (
+        {owned.length > 0 ? (
+          <section className="ob-extra" aria-labelledby="projects-heading">
+            <h2 id="projects-heading">{tx(locale, "Produkmu", "Your products")}</h2>
             <ul className="start-project-list">
               {owned.map((project) => (
                 <StartProjectRow key={project.id} project={project} locale={locale} />
               ))}
             </ul>
-          )}
-        </section>
+          </section>
+        ) : null}
 
-        <p className="start-skip">
-          <Link href="/">{tx(locale, "Lewati untuk sekarang dan jelajahi papan proyek", "Skip for now and browse the board")}</Link>
+        <p className="ob-skip">
+          <Link href="/">{tx(locale, "Lewati dulu, langsung ke direktori", "Skip for now and go to the directory")}</Link>
         </p>
       </main>
 
@@ -123,21 +141,30 @@ export default async function StartPage({
   );
 }
 
-function StepRow({ step, locale }: { step: NextStep; locale: Awaited<ReturnType<typeof currentLocale>> }) {
+function StepRow({
+  step,
+  index,
+  locale,
+  children,
+}: {
+  step: NextStep;
+  index?: number;
+  locale: Awaited<ReturnType<typeof currentLocale>>;
+  children?: React.ReactNode;
+}) {
   return (
-    <li className={`next-step ${step.done ? "is-done" : ""}`}>
-      <span className="next-step-mark" aria-hidden="true">
-        {step.done ? "✓" : ""}
-      </span>
-      <div className="next-step-copy">
+    <li id={`step-${step.id}`} className={`ob-step ${step.done ? "is-done" : ""}`}>
+      <span className="ob-step-mark" aria-hidden="true">{step.done ? "✓" : index ?? "·"}</span>
+      <div className="ob-step-copy">
         <h3>
           {step.title}
-          {step.done ? <span className="next-step-state"> · {tx(locale, "selesai", "done")}</span> : null}
+          {step.done ? <span className="ob-step-state">{tx(locale, "selesai", "done")}</span> : null}
         </h3>
         <p>{step.blurb}</p>
+        {children}
       </div>
-      <Link className="next-step-cta" href={step.href}>
-        {step.done ? tx(locale, "Edit", "Edit") : step.cta}
+      <Link className={step.done ? "ob-step-edit" : "dx-action"} href={step.href}>
+        {step.done ? tx(locale, "Ubah", "Edit") : step.cta}
       </Link>
     </li>
   );

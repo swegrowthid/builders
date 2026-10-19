@@ -135,3 +135,20 @@ test("a product's badges come from the hand-kept list by slug, and default to no
   const [entry] = productEntries(product({ slug: "not-in-the-list", openSeatCount: 1, openRoles: ["design"] }), describe, roleName, "en");
   assert.deepEqual(entry.badges, []);
 });
+
+test("a product's filled seats become its 'friends have been here' badge", () => {
+  const [entry] = productEntries(
+    product({ openSeatCount: 1, openRoles: ["design"], activeMemberCount: 3 }),
+    describe,
+    roleName,
+    "en",
+  );
+  assert.deepEqual(entry.badges, [{ kind: "friend-contributed", count: 3 }]);
+});
+
+test("members' records reach a repo's row through the directory", () => {
+  const repo = OPEN_SOURCE_REPOS.find((entry) => entry.repo === "next.js");
+  const members = [{ username: "ana", name: "Ana", handle: "ana", contributions: [{ repo: "vercel/next.js", relation: "contributor" }] }];
+  const badge = repoEntry(repo, "en", members).badges.find((entry) => entry.kind === "friend-contributed");
+  assert.deepEqual(badge, { kind: "friend-contributed", people: ["ana"], count: 1, profiles: ["ana"] });
+});

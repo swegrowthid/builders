@@ -1,4 +1,5 @@
 import { BADGE_KINDS, PRODUCT_BADGES, type Badge, type BadgeKind } from "./badges";
+import { memberBadges, mergeBadges, type OssMember } from "./oss";
 import type { GitHubRepositoryStats } from "./github";
 import { parseGitHubRepositoryUrl } from "./github";
 import { tx, type Locale } from "./locale";
@@ -73,12 +74,20 @@ export type DirectoryProduct = {
   openForGitHubContributions: boolean;
   openSeatCount: number;
   openRoles: string[];
+  /** Filled seats — people who have already joined and helped. */
+  activeMemberCount: number;
   owner: { name: string };
 };
 
+/**
+ * A repository's entry. `members` are everybody's open source records: who
+ * among us has contributed to or maintains this repo becomes its badges,
+ * alongside whatever was set by hand in the catalogue.
+ */
 export function repoEntry(
   repo: OpenSourceRepo & { stats?: GitHubRepositoryStats | null },
   locale: Locale,
+  members: OssMember[] = [],
 ): DirectoryEntry {
   return {
     key: `repo:${repo.owner}/${repo.repo}`,
@@ -88,7 +97,7 @@ export function repoEntry(
     owner: repo.owner,
     description: localized(repo.summary, locale),
     labels: repo.reasons.filter((reason) => reason !== "ours").map((reason) => reasonLabel(reason, locale)),
-    badges: repo.badges,
+    badges: mergeBadges(repo.badges, memberBadges(`${repo.owner}/${repo.repo}`, members)),
     language: repo.stats?.language || repo.language,
     stars: repo.stats ? repo.stats.stars : null,
     href: repoUrl(repo),
@@ -119,7 +128,12 @@ export function productEntries<P extends DirectoryProduct>(
     language: "",
     stars: null,
     href: page,
-    badges: PRODUCT_BADGES[project.slug] ?? [],
+    // A filled seat is somebody from here who already joined: the product's
+    // own "a friend has been here", counted rather than named.
+    badges: mergeBadges(
+      PRODUCT_BADGES[project.slug] ?? [],
+      project.activeMemberCount > 0 ? [{ kind: "friend-contributed", count: project.activeMemberCount }] : [],
+    ),
   };
   const entries: DirectoryEntry[] = [];
 

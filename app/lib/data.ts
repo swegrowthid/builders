@@ -14,6 +14,7 @@ import type {
 } from "./database.types";
 import { seedEvents, seedProjects, seedUsers } from "./seed";
 import type { Stage } from "./stages";
+import { githubHandle, isOssRelation, type OssContribution, type OssMember, type OssRelation } from "./oss";
 import type { Lane } from "./feed";
 import { COLLABORATION_KINDS, PROJECT_MEMORY_KINDS } from "./activity";
 import { availabilityStatus, type AvailabilityStatus } from "./availability";
@@ -1781,4 +1782,64 @@ function seedDetail(slug: string): ProjectDetail | null {
       author: null,
     })),
   };
+}
+
+/** Rows from `oss_contributions`, by whom. Empty when the table is missing. */
+async function readOssRows(userId?: string): Promise<{ userId: string; repo: string; relation: OssRelation }[]> {
+  const supabase = getPublicSupabase();
+  if (!supabase) return [];
+
+  let request = supabase
+    .from("oss_contributions")
+    .select("user_id, repo, relation")
+    .order("created_at", { ascending: true })
+    .limit(5000);
+  if (userId) request = request.eq("user_id", userId);
+  const { data, error } = await request;
+
+  if (error) {
+    // The records decorate the directory and the profile; neither depends on
+    // them. A deploy that runs ahead of 20261020000000_oss_contributions.sql
+    // loses the badges, not the page.
+    console.warn(`[ahsan] Open source records were skipped: ${error.message}`);
+    return [];
+  }
+
+  return (data ?? [])
+    .filter((row) => isOssRelation(row.relation))
+    .map((row) => ({ userId: row.user_id, repo: row.repo, relation: row.relation as OssRelation }));
+}
+
+/**
+ * Every member with their open source record, for the directory's badges.
+ *
+ * Members with no rows are kept too: one of them may own a listed repository
+ * on GitHub outright, which is a badge on its own.
+ */
+export async function listOssMembers(): Promise<OssMember[]> {
+  "use cache";
+  cacheLife("board");
+  cacheTag(tags.oss, tags.people);
+
+  const [people, rows] = await Promise.all([listPeople(1000), readOssRows()]);
+  const byUser = new Map<string, OssContribution[]>();
+  for (const row of rows) {
+    byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), { repo: row.repo, relation: row.relation }]);
+  }
+
+  return people.map((person) => ({
+    username: person.username,
+    name: person.name,
+    handle: githubHandle(person.github),
+    contributions: byUser.get(person.id) ?? [],
+  }));
+}
+
+/** One person's open source record, oldest first — the order they added it. */
+export async function listOssContributionsOf(userId: string): Promise<OssContribution[]> {
+  "use cache";
+  cacheLife("board");
+  cacheTag(tags.oss);
+
+  return (await readOssRows(userId)).map(({ repo, relation }) => ({ repo, relation }));
 }

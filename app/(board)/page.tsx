@@ -5,7 +5,7 @@ import Link from "@/app/components/responsive-link";
 import { shareCard } from "../content";
 import { SiteFooter, SiteHeader } from "../components/shell";
 import { Skeleton } from "../components/skeleton";
-import { listProjects } from "../lib/data";
+import { listOssMembers, listProjects } from "../lib/data";
 import { readPublicly } from "../lib/public-read";
 import { projectBlurb } from "../lib/brief";
 import {
@@ -144,15 +144,17 @@ export default async function Directory({ searchParams }: { searchParams?: Searc
 
 async function DirectoryBody({ query, locale }: { query: SearchParams; locale: Locale }) {
   const filters = readFilters(await query);
-  const [reposResult, projectsResult] = await Promise.all([
+  const [reposResult, projectsResult, membersResult] = await Promise.all([
     readPublicly("open source repos in the directory", () => listOpenSourceRepos(), []),
     readPublicly("products in the directory", () => listProjects({ lane: "active" }), []),
+    readPublicly("members' open source records in the directory", () => listOssMembers(), []),
   ]);
 
   const repos = reposResult.value;
+  const members = membersResult.value;
   const entries: DirectoryEntry[] = [
-    ...repos.filter((repo) => repo.list === "internal").map((repo) => repoEntry(repo, locale)),
-    ...repos.filter((repo) => repo.list === "recommended").map((repo) => repoEntry(repo, locale)),
+    ...repos.filter((repo) => repo.list === "internal").map((repo) => repoEntry(repo, locale, members)),
+    ...repos.filter((repo) => repo.list === "recommended").map((repo) => repoEntry(repo, locale, members)),
     ...projectsResult.value.flatMap((project) =>
       productEntries(project, projectBlurb, (role) => roleLabel(role, "", locale), locale),
     ),
@@ -348,9 +350,10 @@ function FacetLink({
 }
 
 /**
- * One badge on a row. When it names people, their GitHub avatars ride along
- * and the badge links to the first of them — a face is what makes "a friend
- * has been here" believable.
+ * One badge on a row. When it names people, their GitHub avatars ride along —
+ * a face is what makes "a friend has been here" believable — and the badge
+ * links to the first of them: their profile here when the badge comes from
+ * members' own records, their GitHub otherwise.
  */
 function BadgeChip({ badge, locale }: { badge: Badge; locale: Locale }) {
   const people = badgePeople(badge);
@@ -373,9 +376,13 @@ function BadgeChip({ badge, locale }: { badge: Badge; locale: Locale }) {
     </>
   );
 
+  const profile = badge.profiles?.[0];
+
   return (
     <li className={`dx-badge dx-badge-${badge.kind}`} title={title}>
-      {people.length > 0 ? (
+      {profile ? (
+        <Link href={`/u/${profile}`} aria-label={title}>{content}</Link>
+      ) : people.length > 0 ? (
         <a href={`https://github.com/${people[0]}`} target="_blank" rel="noopener noreferrer" aria-label={title}>{content}</a>
       ) : (
         content

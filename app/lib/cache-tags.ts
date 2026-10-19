@@ -52,4 +52,9 @@ export const tags = {
    * name the thing being invalidated.
    */
   projectTrail: (slug: string) => `project-trail:${slug}`,
+  /**
+   * Every member's open source record — the directory's people badges and
+   * the open source section of each profile are all built from it.
+   */
+  oss: "oss",
 } as const;

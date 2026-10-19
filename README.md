@@ -83,7 +83,10 @@ and everything that writes will say so rather than failing quietly.
     pick the kind of collaboration they are looking for, and
     `20260829130000_link_first_projects.sql`, which drops the brief's length
     floors and adds `highlight`, so a project can arrive as a link and be
-    written up afterwards
+    written up afterwards, and `20261020000000_oss_contributions.sql`, the
+    open source repos each member lists on their profile — the source of the
+    directory's "a friend has contributed" and "maintainer in our group"
+    badges
 3. Copy the project URL and the **anon** key from Project Settings → API into
    `.env.local`. Never put the `service_role` key in this app; it bypasses every
    policy.
@@ -162,9 +165,9 @@ match it.
 | `/` | The directory: facets on the left — how to contribute (`?track=role`; code on GitHub by default), signals (`?badge=friend-contributed\|in-our-group\|indonesian`), source (`?source=internal\|recommended\|product`), language or role (`?facet=`) — and a table of projects on the right, with search (`?q=`) |
 | `/explore` | The older project board, narrowed by level, kind, topic, role, search. No longer in the menu |
 | `/projects/<slug>` | One project: the story, what it is doing now, the help it wants, its journey |
-| `/u/<username>` | One person: what they are building, what they helped build, their trail |
+| `/u/<username>` | One person: who they are, their open source record with a link to the PRs behind each claim, the products they build or help, their trail |
 | `/new` | Add a project. One field: the link. Its page supplies the name, description and icon; the brief and everything else is optional and can be added later |
-| `/get-started` | Where a completed sign-in lands — not a callback, never on the redirect allow list. The steps still owed, and the projects you own; forwards to the board once nothing is owed |
+| `/get-started` | Where a completed sign-in lands — not a callback, never on the redirect allow list. Three steps — link GitHub, list the repos you have contributed to (the form is inline), say who you are — then founder steps, offered not owed; forwards to the directory once nothing is owed |
 | `/account/profile` | The profile editor — who you are, what puts you in the talent pool, how to reach you |
 | `/signin`, `/signup` | Google OAuth or email and password, through Supabase Auth |
 | `/about`, `/en/about` | The story behind the name, in Indonesian and English |
@@ -188,13 +191,18 @@ match it.
   GitHub's stars and last push, cached for hours; set `GITHUB_TOKEN` (any
   read-only token) to lift GitHub's anonymous rate limit. Without it a refused
   request costs that card its numbers and nothing else.
-- `app/lib/badges.ts` — the hand-set badges on a directory row: a friend has
-  contributed, the maintainer is in our group, the maintainers are
-  Indonesian. A repository's go on its entry in `app/lib/open-source.ts`
-  (`badges: [{ kind: "friend-contributed", people: ["github-username"] }]`); a
-  builders' product's go in `PRODUCT_BADGES`, by slug. Named people show as
-  their GitHub avatars. Nothing is inferred — a badge exists because somebody
-  wrote it down.
+- `app/lib/oss.ts` — members' open source records and the badges built from
+  them. A member lists the repos they contributed to or maintain (profile
+  editor, or step 2 of onboarding); every listed repo in the directory then
+  shows who among us has been there, with their GitHub avatars, linking to
+  their profile. Each claim on a profile sits beside a link to that person's
+  PRs on the repo, so anybody can check it. A product's filled seats count as
+  its "friends have been here".
+- `app/lib/badges.ts` — badge kinds and the hand-set ones, merged per kind
+  with the member-derived ones: for what no member can say for themselves
+  ("maintainers are Indonesian") or somebody not signed up yet. A repo's go on
+  its entry in `app/lib/open-source.ts`; a product's in `PRODUCT_BADGES`, by
+  slug.
 - `app/lib/directory.ts` — splits the directory by how you contribute: code
   through a pull request on GitHub (our repos, recommended repos, products
   open to PRs), or another role on a builders' product. A product doing both

@@ -21,6 +21,8 @@ import { getGitHubProjectDraft, isGitHubRepositoryUrl, type GitHubProjectDraft }
 import { fetchLinkMetadata, normaliseLink, titleFromLink } from "./lib/link-metadata";
 import { currentViewer, viewerId } from "./lib/session";
 import { normalisePeopleTerms } from "./lib/people";
+import { isOssRelation, parseRepoRef } from "./lib/oss";
+import { signInPath } from "./lib/urls";
 import {
   PROFILE_LIMITS,
   PROFILE_MAXIMUM,
@@ -1287,4 +1289,67 @@ function messageOf(error: unknown, locale: Locale): string {
     return known[error.message] ?? tx(locale, "Terjadi masalah saat menyimpan. Coba lagi sebentar lagi.", error.message);
   }
   return tx(locale, "Terjadi masalah saat menyimpan. Coba lagi sebentar lagi.", "Something went wrong while saving. Please try again shortly.");
+}
+
+/**
+ * Adds a repository to the viewer's open source record.
+ *
+ * A plain form post that comes back to the editor with `?oss=` saying what
+ * happened, so it works before any JavaScript arrives. The repo is normalised
+ * here — a pasted pull-request URL becomes `owner/name` — and the database's
+ * check constraint refuses anything that slips past.
+ */
+export async function addOssContribution(formData: FormData): Promise<void> {
+  const viewer = await currentViewer();
+  if (!viewer) redirect(signInPath("/account/profile#open-source"));
+
+  const back = (status: string) => ossReturn(text(formData, "returnTo"), status);
+  const repo = parseRepoRef(text(formData, "repo"));
+  const relation = text(formData, "relation");
+  if (!repo || !isOssRelation(relation)) redirect(back("invalid"));
+
+  const supabase = await requireSupabase();
+  const { error } = await supabase.from("oss_contributions").insert({ user_id: viewer.id, repo, relation });
+  if (error) {
+    // 23505: the unique (user_id, repo) — already listed, which is not a failure.
+    if (error.code === "23505") redirect(back("exists"));
+    throw new Error(error.message);
+  }
+
+  ossChanged(viewer.username);
+  redirect(back("added"));
+}
+
+/**
+ * Where the open source form goes back to: the onboarding page it can be
+ * embedded in, or the profile editor. A fixed pair rather than whatever the
+ * form says, so the field can never become an open redirect.
+ */
+function ossReturn(requested: string, status: string): string {
+  return requested === "/get-started?all=1"
+    ? `/get-started?all=1&oss=${status}#step-oss`
+    : `/account/profile?oss=${status}#open-source`;
+}
+
+/** Removes one repository from the viewer's record. RLS keeps it to their own rows. */
+export async function removeOssContribution(formData: FormData): Promise<void> {
+  const viewer = await currentViewer();
+  if (!viewer) redirect(signInPath("/account/profile#open-source"));
+
+  const repo = parseRepoRef(text(formData, "repo"));
+  if (!repo) redirect("/account/profile#open-source");
+
+  const supabase = await requireSupabase();
+  const { error } = await supabase.from("oss_contributions").delete().eq("user_id", viewer.id).eq("repo", repo);
+  if (error) throw new Error(error.message);
+
+  ossChanged(viewer.username);
+  redirect("/account/profile?oss=removed#open-source");
+}
+
+function ossChanged(username: string): void {
+  updateTag(tags.oss);
+  revalidatePath("/");
+  revalidatePath(`/u/${username}`);
+  revalidatePath("/get-started");
 }

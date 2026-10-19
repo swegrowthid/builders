@@ -737,6 +737,64 @@ select checks.equal((select boost_count::int from public.project_overview where 
 select checks.equal((select open_task_count::int from public.project_overview where slug = 'kelas-sore'), 0, 'hitungan tugas jalan');
 select checks.equal((select done_task_count::int from public.project_overview where slug = 'kelas-sore'), 0, 'hitungan tugas beres');
 
+-- ------------------------------------------------------- oss_contributions --
+-- A member's open source record feeds the directory's badges, so it must be
+-- readable by anybody and writable only by its owner.
+
+select checks.act_as('22222222-2222-4222-8222-222222222222');
+
+select checks.allowed($$
+  insert into public.oss_contributions (user_id, repo, relation)
+  values ('22222222-2222-4222-8222-222222222222', 'vercel/next.js', 'contributor')
+$$, 'anggota mencatat repo yang pernah dikontribusi');
+
+select checks.denied($$
+  insert into public.oss_contributions (user_id, repo, relation)
+  values ('22222222-2222-4222-8222-222222222222', 'vercel/next.js', 'maintainer')
+$$, 'repo yang sama dicatat dua kali');
+
+select checks.denied($$
+  insert into public.oss_contributions (user_id, repo)
+  values ('11111111-1111-4111-8111-111111111111', 'supabase/supabase')
+$$, 'mencatat kontribusi atas nama orang lain');
+
+select checks.denied($$
+  insert into public.oss_contributions (user_id, repo)
+  values ('22222222-2222-4222-8222-222222222222', 'Vercel/Next.js')
+$$, 'repo harus huruf kecil');
+
+select checks.denied($$
+  insert into public.oss_contributions (user_id, repo)
+  values ('22222222-2222-4222-8222-222222222222', 'https://github.com/a/b')
+$$, 'repo harus owner/nama, bukan URL');
+
+select checks.denied($$
+  insert into public.oss_contributions (user_id, repo, relation)
+  values ('22222222-2222-4222-8222-222222222222', 'a/b', 'founder')
+$$, 'peran di luar contributor/maintainer');
+
+select checks.denied($$
+  update public.oss_contributions set relation = 'maintainer'
+  where user_id = '22222222-2222-4222-8222-222222222222'
+$$, 'mengubah baris yang sudah ada');
+
+select checks.act_as('11111111-1111-4111-8111-111111111111');
+
+delete from public.oss_contributions where user_id = '22222222-2222-4222-8222-222222222222';
+select checks.equal((select count(*)::int from public.oss_contributions), 1,
+                    'menghapus catatan orang lain tidak berpengaruh');
+
+select checks.act_as_guest();
+select checks.equal((select count(*)::int from public.oss_contributions), 1, 'tamu bisa membaca catatan open source');
+select checks.denied($$
+  insert into public.oss_contributions (user_id, repo)
+  values ('22222222-2222-4222-8222-222222222222', 'tamu/repo')
+$$, 'tamu mencatat kontribusi');
+
+select checks.act_as('22222222-2222-4222-8222-222222222222');
+delete from public.oss_contributions where user_id = '22222222-2222-4222-8222-222222222222';
+select checks.equal((select count(*)::int from public.oss_contributions), 0, 'anggota menghapus catatannya sendiri');
+
 reset role;
 select checks.equal((select count(*)::int from public.feedback where author_id is null), 1,
                     'masukan tamu tersimpan tanpa penulis');

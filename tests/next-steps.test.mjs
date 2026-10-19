@@ -27,55 +27,64 @@ const filledPerson = {
 
 const project = (over = {}) => ({ slug: "warung-antre", nowText: "", openSeatCount: 0, ...over });
 
-test("a brand new account owes the three starting steps", () => {
-  const steps = nextSteps({ person: emptyPerson, owned: [], contributing: [] });
+test("a brand new account owes GitHub, its open source record, and who it is", () => {
+  const steps = nextSteps({ person: emptyPerson, owned: [] });
   assert.deepEqual(
     remainingSteps(steps).map((step) => step.id),
-    ["project", "talent", "contact"],
+    ["github", "oss", "talent"],
   );
 });
 
-test("the project steps stay hidden until there is a project to say them about", () => {
-  const steps = nextSteps({ person: emptyPerson, owned: [], contributing: [] });
+test("GitHub counts once it reads as an account, in any of the usual spellings", () => {
+  const done = (github) => nextSteps({ person: { ...emptyPerson, github }, owned: [] }).find((step) => step.id === "github").done;
+  assert.equal(done("https://github.com/someone"), true);
+  assert.equal(done("@someone"), true);
+  assert.equal(done("https://gitlab.com/someone"), false);
+  assert.equal(done("https://github.com/someone/a-repo"), false);
+});
+
+test("listing one repo settles the open source step", () => {
+  const steps = nextSteps({ person: emptyPerson, owned: [], ossCount: 1 });
+  assert.equal(steps.find((step) => step.id === "oss").done, true);
+});
+
+test("listing a product is offered, never owed", () => {
+  const steps = nextSteps({ person: emptyPerson, owned: [] });
+  const productStep = steps.find((step) => step.id === "project");
+  assert.equal(productStep.optional, true);
+  assert.equal(remainingSteps(steps).includes(productStep), false);
+});
+
+test("the product steps stay hidden until there is a product to say them about", () => {
+  const steps = nextSteps({ person: emptyPerson, owned: [] });
   assert.equal(steps.some((step) => step.id === "now"), false);
   assert.equal(steps.some((step) => step.id === "role"), false);
 });
 
-test("helping on somebody else's project counts as showing work", () => {
-  const steps = nextSteps({ person: emptyPerson, owned: [], contributing: [{ role: "designer" }] });
-  assert.equal(steps.find((step) => step.id === "project").done, true);
-});
-
-test("a filled profile with a live project owes nothing", () => {
-  const steps = nextSteps({
-    person: filledPerson,
-    owned: [project({ nowText: "Menyusun materi pertama." })],
-    contributing: [],
-  });
+test("a contributor with GitHub, a record, and a profile owes nothing", () => {
+  const steps = nextSteps({ person: { ...filledPerson, github: "https://github.com/someone" }, owned: [], ossCount: 2 });
   assert.deepEqual(remainingSteps(steps), []);
 });
 
-test("opening a role is offered but never owed", () => {
+test("a founder's product steps are offered, never owed", () => {
   const steps = nextSteps({
-    person: filledPerson,
-    owned: [project({ nowText: "Menyusun materi pertama." })],
-    contributing: [],
+    person: { ...filledPerson, github: "someone" },
+    owned: [project()],
+    ossCount: 1,
   });
-  const role = steps.find((step) => step.id === "role");
-  assert.equal(role.done, false);
-  assert.equal(role.optional, true);
-  assert.equal(remainingSteps(steps).includes(role), false);
+  assert.deepEqual(remainingSteps(steps), []);
+  assert.ok(steps.find((step) => step.id === "role").optional);
+  assert.ok(steps.find((step) => step.id === "now").optional);
 });
 
-test("the now step points at a project that has not said anything yet", () => {
+test("the now step points at a product that has not said anything yet", () => {
   const steps = nextSteps({
     person: filledPerson,
     owned: [project({ slug: "sudah", nowText: "Sedang uji coba." }), project({ slug: "belum" })],
-    contributing: [],
   });
   const now = steps.find((step) => step.id === "now");
   assert.equal(now.href, "/projects/belum");
-  // One project speaking is enough for the step itself to be settled.
+  // One product speaking is enough for the step itself to be settled.
   assert.equal(now.done, true);
 });
 
