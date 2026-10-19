@@ -7,11 +7,16 @@ export default function Loading() {
       <HeaderShell active="home" />
       <main id="main-content" className="dir-page">
         <LoadingNote />
-        <Skeleton height={46} width="80%" style={{ marginBottom: 16 }} />
-        <Skeleton height={16} width="64%" style={{ marginBottom: 30 }} />
-        <Skeleton height={52} style={{ marginBottom: 12 }} />
-        <Skeleton height={40} style={{ marginBottom: 14 }} />
-        {[0, 1, 2, 3, 4].map((slot) => <Skeleton key={slot} height={92} style={{ borderRadius: 14, marginBottom: 8 }} />)}
+        <Skeleton height={40} width="50%" style={{ marginBottom: 12 }} />
+        <Skeleton height={15} width="34%" style={{ marginBottom: 22 }} />
+        <div className="dir-paths">
+          <Skeleton height={74} style={{ borderRadius: 16 }} />
+          <Skeleton height={74} style={{ borderRadius: 16 }} />
+        </div>
+        <Skeleton height={44} style={{ borderRadius: 12, margin: "16px 0 18px" }} />
+        <div className="dir-grid">
+          {[0, 1, 2, 3, 4, 5].map((slot) => <Skeleton key={slot} height={190} style={{ borderRadius: 16 }} />)}
+        </div>
       </main>
     </>
   );

@@ -138,22 +138,46 @@ export function productEntries<P extends DirectoryProduct>(
   return entries;
 }
 
+export type DirectoryFilters = {
+  track: DirectoryTrack;
+  /** A language on the GitHub path, a role on the role path. Empty for any. */
+  facet: string;
+  q: string;
+};
+
+/** What the chips on a path filter by: a repo's language, or a role asked for. */
+function facetsOf(entry: DirectoryEntry): string[] {
+  return entry.track === "github" ? (entry.language ? [entry.language] : []) : entry.labels;
+}
+
 /**
- * Narrowed by the tab and the search box. Order is kept as given: ours first,
- * then recommendations, then products — the caller builds it in that order.
+ * One path, narrowed by its chip and the search box. Order is kept as given:
+ * ours first, then recommendations, then products — the caller builds it in
+ * that order.
  */
-export function filterDirectory(
-  entries: DirectoryEntry[],
-  filters: { track: DirectoryTrack | ""; q: string },
-): DirectoryEntry[] {
+export function filterDirectory(entries: DirectoryEntry[], filters: DirectoryFilters): DirectoryEntry[] {
   const query = searchable(filters.q);
+  const facet = searchable(filters.facet);
   return entries.filter((entry) => {
-    if (filters.track && entry.track !== filters.track) return false;
+    if (entry.track !== filters.track) return false;
+    if (facet && !facetsOf(entry).some((value) => searchable(value) === facet)) return false;
     if (!query) return true;
     return searchable(
       [entry.name, entry.owner, entry.description, entry.language, ...entry.labels].join(" "),
     ).includes(query);
   });
+}
+
+/** The chips for one path, most common first. */
+export function directoryFacets(entries: DirectoryEntry[], track: DirectoryTrack): { value: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    if (entry.track !== track) continue;
+    for (const value of facetsOf(entry)) counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
 }
 
 export function sourceLabel(source: DirectorySource, locale: Locale): string {
@@ -172,6 +196,6 @@ function searchable(value: string): string {
   return value
     .toLocaleLowerCase("id")
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim();
 }

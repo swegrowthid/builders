@@ -10,13 +10,14 @@ import { readPublicly } from "../lib/public-read";
 import { projectBlurb } from "../lib/brief";
 import {
   DIRECTORY_TRACKS,
+  directoryFacets,
   filterDirectory,
   isDirectoryTrack,
   productEntries,
   repoEntry,
   sourceLabel,
-  trackLabel,
   type DirectoryEntry,
+  type DirectoryFilters,
   type DirectoryTrack,
 } from "../lib/directory";
 import { listOpenSourceRepos } from "../lib/open-source-live";
@@ -29,33 +30,62 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = tx(locale, "Builders — Direktori Project untuk Dikontribusikan", "Builders — A Directory of Projects to Contribute To");
   const description = tx(
     locale,
-    "Cari project open source dan produk builders yang menerima kontribusi, lalu langsung mulai dari isu pemulanya.",
-    "Find open source projects and builders' products that welcome contributions, and start straight from their starter issues.",
+    "Kirim kode ke project open source di GitHub, atau bantu produk builders lewat peran lain. Pilih caramu, pilih project-nya, mulai.",
+    "Send code to open source projects on GitHub, or help builders' products in another role. Pick your way, pick a project, start.",
   );
   return { title, description, alternates: { canonical: "/" }, openGraph: shareCard({ title, description, url: "/" }) };
 }
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-type Filters = { track: DirectoryTrack | ""; q: string };
 
-function readFilters(query: Record<string, string | string[] | undefined>): Filters {
+/**
+ * What the URL asks for. Software engineers are who the site is for first,
+ * so with no choice made the GitHub path is the one showing.
+ */
+function readFilters(query: Record<string, string | string[] | undefined>): DirectoryFilters {
   const track = one(query.track);
-  return { track: isDirectoryTrack(track) ? track : "", q: one(query.q).slice(0, 100) };
+  return {
+    track: isDirectoryTrack(track) ? track : "github",
+    facet: one(query.facet).slice(0, 60),
+    q: one(query.q).slice(0, 100),
+  };
 }
 
-function pathFor(filters: Filters): string {
+function pathFor(filters: DirectoryFilters): string {
   const params = new URLSearchParams();
-  if (filters.track) params.set("track", filters.track);
+  if (filters.track !== "github") params.set("track", filters.track);
+  if (filters.facet) params.set("facet", filters.facet);
   if (filters.q) params.set("q", filters.q);
   const search = params.toString();
   return `/${search ? `?${search}` : ""}`;
 }
 
+const PATHS: Record<DirectoryTrack, { titleId: string; titleEn: string; bodyId: string; bodyEn: string }> = {
+  github: {
+    titleId: "Kirim kode",
+    titleEn: "Send code",
+    bodyId: "Pull request ke project open source di GitHub",
+    bodyEn: "Pull requests to open source projects on GitHub",
+  },
+  role: {
+    titleId: "Bantu lewat peran",
+    titleEn: "Help in a role",
+    bodyId: "Desain, produk, riset, konten di produk builders",
+    bodyEn: "Design, product, research, content on builders' products",
+  },
+};
+
 /**
- * The directory. One heading, one search box, one list.
+ * The directory, laid out in the order somebody uses it:
  *
- * The heading prerenders; the list depends on the URL and streams in behind
- * a skeleton.
+ *   1. how do I want to contribute? — two choices, side by side, at the top;
+ *   2. narrow it down — a search box and one row of chips for that choice
+ *      (languages for code, roles for everything else);
+ *   3. pick one — a compact grid, so a screen holds most of the list;
+ *   4. start — every card ends in the one button that begins the work.
+ *
+ * Only the chosen path is shown, so nobody scrolls past one list to find the
+ * other. The heading prerenders; everything that reads the URL streams in.
  */
 export default async function Directory({ searchParams }: { searchParams?: SearchParams }) {
   const query = searchParams ?? Promise.resolve({});
@@ -67,18 +97,12 @@ export default async function Directory({ searchParams }: { searchParams?: Searc
 
       <main id="main-content" className="dir-page">
         <header className="dir-head">
-          <h1>{tx(locale, "Project yang bisa kamu kontribusikan.", "Projects you can contribute to.")}</h1>
-          <p>
-            {tx(
-              locale,
-              "Dua jalan untuk berkontribusi: kirim kode lewat pull request di GitHub, atau gabung ke produk builders lewat peran lain — desain, produk, riset, konten.",
-              "Two ways to contribute: send code as a pull request on GitHub, or join a builders' product in another role — design, product, research, content.",
-            )}
-          </p>
+          <h1>{tx(locale, "Mau kontribusi lewat apa?", "How do you want to contribute?")}</h1>
+          <p>{tx(locale, "Pilih caramu, pilih project-nya, lalu mulai.", "Pick your way, pick a project, then start.")}</p>
         </header>
 
-        <Suspense fallback={<ListSkeleton />}>
-          <DirectoryList query={query} locale={locale} />
+        <Suspense fallback={<DirectorySkeleton />}>
+          <DirectoryBody query={query} locale={locale} />
         </Suspense>
       </main>
 
@@ -87,7 +111,7 @@ export default async function Directory({ searchParams }: { searchParams?: Searc
   );
 }
 
-async function DirectoryList({ query, locale }: { query: SearchParams; locale: Locale }) {
+async function DirectoryBody({ query, locale }: { query: SearchParams; locale: Locale }) {
   const filters = readFilters(await query);
   const [reposResult, projectsResult] = await Promise.all([
     readPublicly("open source repos in the directory", () => listOpenSourceRepos(), []),
@@ -103,36 +127,60 @@ async function DirectoryList({ query, locale }: { query: SearchParams; locale: L
     ),
   ];
   const matched = filterDirectory(entries, filters);
+  const facets = directoryFacets(entries, filters.track);
   const count = (track: DirectoryTrack) => entries.filter((entry) => entry.track === track).length;
-  const shown = filters.track ? [filters.track] : DIRECTORY_TRACKS;
 
   return (
     <>
-      <div className="dir-controls">
+      <nav className="dir-paths" aria-label={tx(locale, "Cara berkontribusi", "How to contribute")}>
+        {DIRECTORY_TRACKS.map((track) => {
+          const active = filters.track === track;
+          return (
+            <Link
+              key={track}
+              className={`dir-path dir-path-${track} ${active ? "is-active" : ""}`}
+              aria-current={active ? "page" : undefined}
+              href={pathFor({ track, facet: "", q: filters.q })}
+            >
+              <TrackIcon track={track} />
+              <span className="dir-path-copy">
+                <strong>{tx(locale, PATHS[track].titleId, PATHS[track].titleEn)}</strong>
+                <small>{tx(locale, PATHS[track].bodyId, PATHS[track].bodyEn)}</small>
+              </span>
+              <span className="dir-path-count">{count(track)}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="dir-toolbar">
         <Form className="dir-search" action="/" role="search">
-          {filters.track ? <input type="hidden" name="track" value={filters.track} /> : null}
+          {filters.track !== "github" ? <input type="hidden" name="track" value={filters.track} /> : null}
+          {filters.facet ? <input type="hidden" name="facet" value={filters.facet} /> : null}
           <label>
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
             <span className="sr-only">{tx(locale, "Cari project", "Search projects")}</span>
-            <input
-              type="search"
-              name="q"
-              defaultValue={filters.q}
-              placeholder={tx(locale, "Cari nama, bahasa, atau peran…", "Search name, language, or role…")}
-            />
+            <input type="search" name="q" defaultValue={filters.q} placeholder={tx(locale, "Cari project…", "Search projects…")} />
           </label>
         </Form>
 
-        <nav className="dir-tabs" aria-label={tx(locale, "Cara berkontribusi", "How to contribute")}>
-          <TabLink active={filters.track === ""} href={pathFor({ ...filters, track: "" })}>
-            {tx(locale, "Semua", "All")} <span>{entries.length}</span>
-          </TabLink>
-          {DIRECTORY_TRACKS.map((track) => (
-            <TabLink key={track} active={filters.track === track} href={pathFor({ ...filters, track })}>
-              <TrackIcon track={track} /> {trackLabel(track, locale)} <span>{count(track)}</span>
-            </TabLink>
-          ))}
-        </nav>
+        {facets.length > 0 ? (
+          <div className="dir-chips" aria-label={filters.track === "github" ? tx(locale, "Bahasa", "Language") : tx(locale, "Peran", "Role")}>
+            <Link className={`dir-chip ${filters.facet === "" ? "is-active" : ""}`} href={pathFor({ ...filters, facet: "" })}>
+              {filters.track === "github" ? tx(locale, "Semua bahasa", "Any language") : tx(locale, "Semua peran", "Any role")}
+            </Link>
+            {facets.map(({ value }) => (
+              <Link
+                key={value}
+                className={`dir-chip ${filters.facet === value ? "is-active" : ""}`}
+                aria-current={filters.facet === value ? "true" : undefined}
+                href={pathFor({ ...filters, facet: filters.facet === value ? "" : value })}
+              >
+                {value}
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {reposResult.unavailable || projectsResult.unavailable ? (
@@ -141,40 +189,20 @@ async function DirectoryList({ query, locale }: { query: SearchParams; locale: L
         </p>
       ) : null}
 
-      {shown.map((track) => {
-        const rows = matched.filter((entry) => entry.track === track);
-        return (
-          <section key={track} className={`dir-section dir-section-${track}`} aria-labelledby={`dir-${track}-title`}>
-            <div className="dir-section-head">
-              <h2 id={`dir-${track}-title`}><TrackIcon track={track} /> {trackLabel(track, locale)}</h2>
-              <p>
-                {track === "github"
-                  ? tx(locale, "Kontribusi kode lewat pull request. Tombolnya membuka isu di GitHub.", "Code contributions through pull requests. The button opens the issues on GitHub.")
-                  : tx(locale, "Gabung ke produk builders lewat peran yang mereka cari — tanpa harus lewat PR.", "Join a builders' product in a role it is looking for — no pull request needed.")}
-              </p>
-            </div>
-            {rows.length > 0 ? (
-              <ul className="dir-list">
-                {rows.map((entry) => <DirectoryRow key={entry.key} entry={entry} locale={locale} />)}
-              </ul>
-            ) : (
-              <p className="dir-empty">
-                {filters.q
-                  ? tx(locale, "Tidak ada yang cocok dengan pencarian ini.", "Nothing matches this search.")
-                  : tx(locale, "Belum ada.", "Nothing here yet.")}
-              </p>
-            )}
-          </section>
-        );
-      })}
+      {matched.length > 0 ? (
+        <ul className="dir-grid">
+          {matched.map((entry) => <DirectoryCard key={entry.key} entry={entry} locale={locale} />)}
+        </ul>
+      ) : (
+        <div className="dir-empty">
+          <p>{tx(locale, "Tidak ada project yang cocok.", "No project matches.")}</p>
+          <Link href={pathFor({ track: filters.track, facet: "", q: "" })}>{tx(locale, "Hapus filter", "Clear filters")}</Link>
+        </div>
+      )}
 
       <p className="dir-suggest">
         {tx(locale, "Punya project yang butuh kontributor?", "Have a project that needs contributors?")}{" "}
         <Link href="/new">{tx(locale, "Daftarkan di sini", "List it here")}</Link>
-        {" · "}
-        <a href="https://github.com/zikrulihsan/builders/blob/main/app/lib/open-source.ts" target="_blank" rel="noopener noreferrer">
-          {tx(locale, "Usulkan repo open source lewat PR", "Suggest an open source repo in a PR")}
-        </a>
       </p>
     </>
   );
@@ -192,53 +220,42 @@ function TrackIcon({ track }: { track: DirectoryTrack }) {
   );
 }
 
-function TabLink({ active, href, children }: { active: boolean; href: string; children: React.ReactNode }) {
-  return (
-    <Link className={active ? "is-active" : ""} aria-current={active ? "page" : undefined} href={href}>
-      {children}
-    </Link>
-  );
-}
-
-function DirectoryRow({ entry, locale }: { entry: DirectoryEntry; locale: Locale }) {
-  const external = (href: string) =>
-    href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {};
+function DirectoryCard({ entry, locale }: { entry: DirectoryEntry; locale: Locale }) {
+  const external = { target: "_blank", rel: "noopener noreferrer" };
+  const nameLeaves = entry.href.startsWith("http");
 
   return (
-    <li className={`dir-row dir-row-${entry.track} dir-row-${entry.source}`}>
-      <span className="dir-mark" aria-hidden="true">{entry.name.slice(0, 1).toUpperCase()}</span>
-
-      <div className="dir-main">
-        <h3>
-          {entry.href.startsWith("http") ? (
-            <a href={entry.href} {...external(entry.href)}>
-              {entry.source !== "product" ? <span className="dir-owner">{entry.owner}/</span> : null}
-              {entry.name}
-            </a>
-          ) : (
-            <Link href={entry.href}>{entry.name}</Link>
-          )}
-        </h3>
-        <p>{entry.description}</p>
-        <ul className="dir-meta">
-          <li className="dir-kind">{sourceLabel(entry.source, locale)}</li>
-          {entry.source === "product" ? <li>{tx(locale, `oleh ${entry.owner}`, `by ${entry.owner}`)}</li> : null}
-          {entry.language ? <li>{entry.language}</li> : null}
-          {entry.stars !== null ? <li>★ {compactNumber(entry.stars, locale)}</li> : null}
-          {entry.track === "github"
-            ? entry.labels.map((label) => <li key={label} className="dir-label">{label}</li>)
-            : null}
-        </ul>
-        {entry.track === "role" && entry.labels.length > 0 ? (
-          <ul className="dir-roles" aria-label={tx(locale, `Peran yang dicari ${entry.name}`, `Roles ${entry.name} is looking for`)}>
-            <li className="dir-roles-lead">{tx(locale, "Mencari", "Looking for")}</li>
-            {entry.labels.map((label) => <li key={label}>{label}</li>)}
-          </ul>
-        ) : null}
+    <li className={`dir-card dir-card-${entry.track} dir-card-${entry.source}`}>
+      <div className="dir-card-head">
+        <span className="dir-mark" aria-hidden="true">{entry.name.slice(0, 1).toUpperCase()}</span>
+        <div className="dir-card-title">
+          <h2>
+            {nameLeaves ? (
+              <a href={entry.href} {...external}>{entry.name}</a>
+            ) : (
+              <Link href={entry.href}>{entry.name}</Link>
+            )}
+          </h2>
+          <small>
+            {entry.source === "product" ? tx(locale, `oleh ${entry.owner}`, `by ${entry.owner}`) : entry.owner}
+          </small>
+        </div>
       </div>
 
+      <p className="dir-card-desc">{entry.description}</p>
+
+      <ul className="dir-card-meta">
+        <li className="dir-source">{sourceLabel(entry.source, locale)}</li>
+        {entry.language ? <li>{entry.language}</li> : null}
+        {entry.stars !== null ? <li>★ {compactNumber(entry.stars, locale)}</li> : null}
+        {entry.track === "role"
+          ? entry.labels.slice(0, 3).map((label) => <li key={label} className="dir-role">{label}</li>)
+          : entry.labels.slice(0, 1).map((label) => <li key={label} className="dir-reason">{label}</li>)}
+        {entry.track === "role" && entry.labels.length > 3 ? <li>+{entry.labels.length - 3}</li> : null}
+      </ul>
+
       {entry.external ? (
-        <a className="dir-action" href={entry.actionHref} {...external(entry.actionHref)}>
+        <a className="dir-action" href={entry.actionHref} {...external}>
           {entry.actionLabel} <span aria-hidden="true">↗</span>
         </a>
       ) : (
@@ -250,10 +267,17 @@ function DirectoryRow({ entry, locale }: { entry: DirectoryEntry; locale: Locale
   );
 }
 
-function ListSkeleton() {
+function DirectorySkeleton() {
   return (
-    <div className="dir-list" aria-busy="true">
-      {[0, 1, 2, 3, 4].map((slot) => <Skeleton key={slot} height={92} style={{ borderRadius: 14, marginBottom: 8 }} />)}
+    <div aria-busy="true">
+      <div className="dir-paths">
+        <Skeleton height={74} style={{ borderRadius: 16 }} />
+        <Skeleton height={74} style={{ borderRadius: 16 }} />
+      </div>
+      <Skeleton height={48} style={{ borderRadius: 12, margin: "16px 0 24px" }} />
+      <div className="dir-grid">
+        {[0, 1, 2, 3, 4, 5].map((slot) => <Skeleton key={slot} height={190} style={{ borderRadius: 16 }} />)}
+      </div>
     </div>
   );
 }

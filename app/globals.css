@@ -3642,102 +3642,122 @@ form button[aria-busy="true"]::after,
 }
 
 /* ============================================================ directory
-   The home page is one list: a search box, four tabs, and a row per project.
-   A row reads left to right the way it is used — what it is, then where to
-   start — so the contribute button is always in the same place. */
+   Laid out in the order it is used: choose how to contribute (two cards at the
+   top), narrow it down (search + one row of chips), pick one (a compact grid),
+   start (the button at the foot of every card). GitHub speaks in ink, roles in
+   coral, so the two paths never read as the same thing. */
 
-.dir-page { margin: 0 auto; max-width: 960px; padding: 56px var(--gutter) 72px; width: 100%; }
+.dir-page { margin: 0 auto; max-width: 1180px; padding: 44px var(--gutter) 64px; width: 100%; }
 .dir-head h1 {
-  color: #152a24; font-size: clamp(32px, 4.4vw, 46px); font-weight: 720; letter-spacing: -.055em;
-  line-height: 1.05; margin: 0; text-wrap: balance;
+  color: #152a24; font-size: clamp(30px, 4vw, 42px); font-weight: 720; letter-spacing: -.055em;
+  line-height: 1.05; margin: 0;
 }
-.dir-head p { color: #64776f; font-size: 16px; line-height: 1.65; margin: 14px 0 0; max-width: 680px; }
+.dir-head p { color: #64776f; font-size: 15px; margin: 8px 0 22px; }
 
-.dir-controls {
-  background: var(--paper); display: grid; gap: 12px; margin: 30px 0 14px; padding: 10px 0 0;
-  position: sticky; top: var(--header-h); z-index: 5;
+.dir-paths { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dir-path {
+  align-items: center; background: #fff; border: 1.5px solid #dce4df; border-radius: 16px; display: flex;
+  gap: 14px; min-height: 74px; padding: 14px 18px; transition: border-color .15s ease, box-shadow .15s ease;
 }
-.dir-search { margin: 0; }
+.dir-path:hover { border-color: #aebfb7; }
+.dir-path .dir-track-icon {
+  background: #eef3f0; border-radius: 12px; box-sizing: content-box; color: var(--ink); height: 22px;
+  padding: 10px; width: 22px;
+}
+.dir-path-role .dir-track-icon { background: #fdf1ed; color: #a2412f; }
+.dir-path-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.dir-path-copy strong { color: #152a24; font-size: 17px; letter-spacing: -.02em; }
+.dir-path-copy small { color: #6b7c75; font-size: 13px; line-height: 1.4; margin-top: 2px; }
+.dir-path-count {
+  background: #eef3f0; border-radius: 99px; color: #3f5d52; font-size: 13px; font-weight: 700;
+  padding: 3px 10px;
+}
+.dir-path-github.is-active { background: var(--ink); border-color: var(--ink); box-shadow: 0 12px 28px rgba(16, 47, 40, .16); }
+.dir-path-github.is-active .dir-path-copy strong { color: #fff; }
+.dir-path-github.is-active .dir-path-copy small { color: #b9cbc3; }
+.dir-path-github.is-active .dir-track-icon { background: rgba(255, 255, 255, .1); color: var(--lime); }
+.dir-path-github.is-active .dir-path-count { background: var(--lime); color: var(--ink); }
+.dir-path-role.is-active { background: #a2412f; border-color: #a2412f; box-shadow: 0 12px 28px rgba(162, 65, 47, .2); }
+.dir-path-role.is-active .dir-path-copy strong { color: #fff; }
+.dir-path-role.is-active .dir-path-copy small { color: #f6d3c9; }
+.dir-path-role.is-active .dir-track-icon { background: rgba(255, 255, 255, .14); color: #fff; }
+.dir-path-role.is-active .dir-path-count { background: #fff; color: #a2412f; }
+
+.dir-toolbar { align-items: center; display: flex; flex-wrap: wrap; gap: 10px 14px; margin: 16px 0 18px; }
+.dir-search { flex: 0 1 300px; margin: 0; min-width: 0; }
 .dir-search label {
-  align-items: center; background: #fff; border: 1px solid #d8e0dc; border-radius: 13px; display: flex;
-  gap: 12px; height: 52px; margin: 0; padding: 0 16px;
+  align-items: center; background: #fff; border: 1px solid #d8e0dc; border-radius: 12px; display: flex;
+  gap: 10px; height: 44px; margin: 0; padding: 0 14px;
 }
 .dir-search label:focus-within { border-color: var(--ink); }
-.dir-search svg { fill: none; flex: none; height: 19px; stroke: #75857e; stroke-width: 1.8; width: 19px; }
+.dir-search svg { fill: none; flex: none; height: 17px; stroke: #75857e; stroke-width: 1.8; width: 17px; }
 .dir-search input {
-  background: none; border: 0; font-size: 15px; margin: 0; min-width: 0; outline: none; padding: 0; width: 100%;
+  background: none; border: 0; font-size: 14px; margin: 0; min-width: 0; outline: none; padding: 0; width: 100%;
 }
-.dir-tabs {
-  border-bottom: 1px solid var(--line); display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none;
+.dir-chips { display: flex; flex: 1 1 380px; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.dir-chip {
+  background: #fff; border: 1px solid #d8e0dc; border-radius: 99px; color: #4f6259; font-size: 12px;
+  font-weight: 600; padding: 7px 12px; white-space: nowrap;
 }
-.dir-tabs::-webkit-scrollbar { display: none; }
-.dir-tabs a {
-  align-items: center; border-bottom: 2px solid transparent; color: #5f716a; display: inline-flex; flex: none;
-  font-size: 14px; font-weight: 650; gap: 7px; margin-bottom: -1px; padding: 11px 12px;
-}
-.dir-tabs a span { background: #eef3f0; border-radius: 99px; font-size: 11px; padding: 1px 7px; }
-.dir-tabs a:hover { color: var(--ink); }
-.dir-tabs a.is-active { border-bottom-color: var(--coral); color: var(--ink); }
-.dir-tabs a.is-active span { background: var(--ink); color: #fff; }
+.dir-chip:hover { border-color: #8ca89d; }
+.dir-chip.is-active { background: #21332d; border-color: #21332d; color: #fff; }
 
-.dir-list { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
-.dir-row {
-  align-items: center; background: #fff; border: 1px solid #dce4df; border-radius: 14px; display: grid;
-  gap: 16px; grid-template-columns: 44px minmax(0, 1fr) auto; padding: 16px 18px;
-  transition: border-color .15s ease;
+.dir-grid {
+  display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr));
+  list-style: none; margin: 0; padding: 0;
 }
-.dir-row:hover { border-color: #aebfb7; }
+.dir-card {
+  background: #fff; border: 1px solid #dce4df; border-radius: 16px; display: flex; flex-direction: column;
+  gap: 10px; padding: 16px; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.dir-card:hover { border-color: #aebfb7; box-shadow: 0 10px 24px rgba(24, 61, 52, .06); }
+.dir-card-head { align-items: center; display: flex; gap: 11px; min-width: 0; }
 .dir-mark {
-  align-items: center; background: #e4eee8; border-radius: 11px; color: #315d50; display: flex;
-  font-family: var(--font-geist-mono), monospace; font-size: 16px; font-weight: 800; height: 44px;
-  justify-content: center; width: 44px;
+  align-items: center; background: #e4eee8; border-radius: 10px; color: #315d50; display: flex; flex: none;
+  font-family: var(--font-geist-mono), monospace; font-size: 15px; font-weight: 800; height: 38px;
+  justify-content: center; width: 38px;
 }
-.dir-row-github.dir-row-internal .dir-mark { background: var(--ink); color: var(--lime); }
-.dir-row-github.dir-row-product .dir-mark { background: #dfe9f7; color: #2c4f7c; }
-.dir-row-role .dir-mark { background: #fae2dc; color: #a2412f; }
-.dir-row-role .dir-action { background: #fff; border: 1px solid #e3b4a7; color: #a2412f; }
-.dir-row-role .dir-action:hover { background: #fdf1ed; }
-.dir-main { min-width: 0; }
-.dir-main h3 { font-size: 16px; font-weight: 700; letter-spacing: -.02em; line-height: 1.3; margin: 0; }
-.dir-main h3 a:hover { color: var(--coral); }
-.dir-owner { color: #7b8a84; font-weight: 500; }
-.dir-main > p { color: #4f6259; font-size: 13px; line-height: 1.5; margin: 3px 0 8px; }
-.dir-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; list-style: none; margin: 0; padding: 0; }
-.dir-meta li { color: #75857e; font-size: 12px; }
-.dir-meta .dir-kind { color: #3f5d52; font-weight: 700; }
-.dir-meta .dir-label { background: #eef3f0; border-radius: 6px; color: #3f5d52; padding: 0 7px; }
+.dir-card-internal .dir-mark { background: var(--ink); color: var(--lime); }
+.dir-card-role .dir-mark { background: #fae2dc; color: #a2412f; }
+.dir-card-title { min-width: 0; }
+.dir-card-title h2 {
+  font-size: 15px; font-weight: 700; letter-spacing: -.02em; line-height: 1.25; margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dir-card-title h2 a:hover { color: var(--coral); }
+.dir-card-title small { color: #7b8a84; display: block; font-size: 12px; margin-top: 1px; }
+.dir-card-desc {
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #4f6259; display: -webkit-box;
+  font-size: 13px; line-height: 1.5; margin: 0; overflow: hidden;
+}
+.dir-card-meta { display: flex; flex-wrap: wrap; gap: 5px 10px; list-style: none; margin: auto 0 0; padding: 0; }
+.dir-card-meta li { align-items: center; color: #75857e; display: inline-flex; font-size: 12px; }
+.dir-card-meta .dir-source { color: #3f5d52; font-weight: 700; }
+.dir-card-meta .dir-reason { background: #eef3f0; border-radius: 6px; color: #3f5d52; padding: 1px 7px; }
+.dir-card-meta .dir-role { background: #fae2dc; border-radius: 99px; color: #a2412f; font-weight: 650; padding: 2px 9px; }
 .dir-action {
   align-items: center; background: var(--ink); border-radius: 10px; color: #fff; display: inline-flex;
-  font-size: 13px; font-weight: 720; gap: 7px; min-height: 40px; padding: 0 15px; white-space: nowrap;
+  font-size: 13px; font-weight: 720; gap: 7px; justify-content: center; min-height: 38px; padding: 0 14px;
 }
 .dir-action:hover { background: #245e4e; }
-.dir-empty { color: var(--muted); padding: 22px 0; text-align: center; }
-
-/* The two ways to contribute read as two different things at a glance: GitHub
-   in the ink of the rest of the site, roles in coral, each with its own icon. */
-.dir-tabs a .dir-track-icon { height: 15px; width: 15px; }
+.dir-card-role .dir-action { background: #a2412f; }
+.dir-card-role .dir-action:hover { background: #8a3626; }
 .dir-track-icon { fill: none; flex: none; stroke: currentColor; stroke-width: 1.8; }
-.dir-section + .dir-section { margin-top: 40px; }
-.dir-section-head { border-left: 3px solid var(--ink); margin: 10px 0 14px; padding: 2px 0 2px 14px; }
-.dir-section-role .dir-section-head { border-left-color: var(--coral); }
-.dir-section-head h2 {
-  align-items: center; color: #152a24; display: flex; font-size: 19px; font-weight: 720; gap: 8px;
-  letter-spacing: -.03em; margin: 0;
-}
-.dir-section-head h2 .dir-track-icon { height: 20px; width: 20px; }
-.dir-section-role .dir-section-head h2 { color: #a2412f; }
-.dir-section-head p { color: #64776f; font-size: 13px; line-height: 1.55; margin: 4px 0 0; }
-.dir-roles { align-items: center; display: flex; flex-wrap: wrap; gap: 5px; list-style: none; margin: 8px 0 0; padding: 0; }
-.dir-roles li {
-  background: #fae2dc; border-radius: 99px; color: #a2412f; font-size: 12px; font-weight: 650; padding: 3px 10px;
-}
-.dir-roles .dir-roles-lead { background: none; color: #75857e; font-weight: 500; padding: 3px 2px 3px 0; }
+
+.dir-empty { color: var(--muted); padding: 32px 0; text-align: center; }
 .dir-empty a, .dir-suggest a { border-bottom: 1px solid currentColor; color: var(--ink); font-weight: 650; }
-.dir-suggest { color: var(--muted); font-size: 13px; margin: 28px 0 0; text-align: center; }
+.dir-suggest { color: var(--muted); font-size: 13px; margin: 26px 0 0; text-align: center; }
 
 @media (max-width: 640px) {
-  .dir-page { padding-top: 32px; }
-  .dir-row { gap: 12px; grid-template-columns: 36px minmax(0, 1fr); padding: 14px; }
-  .dir-mark { border-radius: 9px; font-size: 14px; height: 36px; width: 36px; }
-  .dir-action { grid-column: 1 / -1; justify-content: center; }
+  .dir-page { padding-top: 26px; }
+  .dir-head p { margin-bottom: 16px; }
+  .dir-paths { gap: 8px; }
+  .dir-path { align-items: flex-start; flex-direction: column; gap: 8px; padding: 12px; position: relative; }
+  .dir-path .dir-track-icon { height: 18px; padding: 8px; width: 18px; }
+  .dir-path-copy strong { font-size: 15px; }
+  .dir-path-copy small { font-size: 12px; }
+  .dir-path-count { position: absolute; right: 10px; top: 12px; }
+  .dir-search { flex-basis: 100%; }
+  .dir-chips { flex-wrap: nowrap; margin: 0 calc(-1 * var(--gutter)); overflow-x: auto; padding: 0 var(--gutter); scrollbar-width: none; }
+  .dir-chips::-webkit-scrollbar { display: none; }
 }

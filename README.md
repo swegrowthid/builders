@@ -159,7 +159,7 @@ match it.
 
 | Route | What it is |
 | --- | --- |
-| `/` | The directory — every project you can contribute to, split into open source on GitHub and other roles (`?track=github\|role`), with search (`?q=`) |
+| `/` | The directory. Choose how to contribute (`?track=role` for roles; code on GitHub by default), narrow by language or role (`?facet=`) and search (`?q=`), pick a project, start |
 | `/explore` | The older project board, narrowed by level, kind, topic, role, search. No longer in the menu |
 | `/projects/<slug>` | One project: the story, what it is doing now, the help it wants, its journey |
 | `/u/<username>` | One person: what they are building, what they helped build, their trail |

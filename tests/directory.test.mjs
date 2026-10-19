@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { filterDirectory, productEntries, repoEntry } from "../app/lib/directory.ts";
+import { directoryFacets, filterDirectory, productEntries, repoEntry } from "../app/lib/directory.ts";
 import { OPEN_SOURCE_REPOS } from "../app/lib/open-source.ts";
 
 const describe = (project) => project.tagline;
@@ -76,15 +76,34 @@ test("a product doing both is listed once on each path", () => {
   assert.equal(new Set(entries.map((entry) => entry.key)).size, 2);
 });
 
-test("filters by path and by search, keeping the given order", () => {
+test("one path at a time, narrowed by its chip and by search, keeping the given order", () => {
   const entries = [
     ...OPEN_SOURCE_REPOS.map((repo) => repoEntry(repo, "en")),
     ...productEntries(product({ openSeatCount: 1, openRoles: ["design"] }), describe, roleName, "en"),
   ];
-  assert.deepEqual(filterDirectory(entries, { track: "role", q: "" }).map((entry) => entry.name), ["Tool"]);
-  assert.ok(filterDirectory(entries, { track: "github", q: "" }).every((entry) => entry.track === "github"));
-  assert.ok(filterDirectory(entries, { track: "", q: "GO" }).some((entry) => entry.name === "heimdall"));
-  assert.deepEqual(filterDirectory(entries, { track: "", q: "design" }).map((entry) => entry.name), ["Tool"]);
-  assert.equal(filterDirectory(entries, { track: "", q: "nothing like this" }).length, 0);
-  assert.equal(filterDirectory(entries, { track: "", q: "" }).length, entries.length);
+  const none = { facet: "", q: "" };
+  assert.deepEqual(filterDirectory(entries, { ...none, track: "role" }).map((entry) => entry.name), ["Tool"]);
+  assert.deepEqual(
+    filterDirectory(entries, { ...none, track: "github" }).map((entry) => entry.name),
+    OPEN_SOURCE_REPOS.map((repo) => repo.repo),
+  );
+  assert.deepEqual(filterDirectory(entries, { track: "github", facet: "go", q: "" }).map((entry) => entry.name), ["heimdall"]);
+  assert.deepEqual(filterDirectory(entries, { track: "role", facet: "DESIGN", q: "" }).map((entry) => entry.name), ["Tool"]);
+  assert.equal(filterDirectory(entries, { track: "role", facet: "QA", q: "" }).length, 0);
+  assert.ok(filterDirectory(entries, { track: "github", facet: "", q: "bahasa" }).length > 0);
+  assert.equal(filterDirectory(entries, { track: "github", facet: "", q: "nothing like this" }).length, 0);
+});
+
+test("chips are the languages on the code path and the roles on the role path", () => {
+  const entries = [
+    ...OPEN_SOURCE_REPOS.map((repo) => repoEntry(repo, "en")),
+    ...productEntries(product({ openSeatCount: 1, openRoles: ["design", "qa"] }), describe, roleName, "en"),
+    ...productEntries(product({ id: 2, slug: "two", openSeatCount: 1, openRoles: ["design"] }), describe, roleName, "en"),
+  ];
+  assert.deepEqual(directoryFacets(entries, "role"), [
+    { value: "DESIGN", count: 2 },
+    { value: "QA", count: 1 },
+  ]);
+  const languages = directoryFacets(entries, "github").map((facet) => facet.value);
+  assert.ok(languages.includes("Go") && !languages.includes("DESIGN"));
 });
