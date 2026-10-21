@@ -64,6 +64,8 @@ export function StarCount({ repo, stars }: { repo: string; stars: number }) {
   const context = useContext(StarsContext);
   const shift = Number(context?.current.has(repo) ?? false) - Number(context?.initial.has(repo) ?? false);
   const count = Math.max(0, stars + shift);
+  // "0 stars" says nothing worth the space; the first star brings it back.
+  if (count === 0) return null;
   return (
     <span className="dx-meta-stars" title={tx(`${count} bintang di GitHub`, `${count} stars on GitHub`)}>
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -105,7 +107,8 @@ export function StarButton({ repo }: { repo: string }) {
   };
 
   // GitHub's own words: the button should read like the one people know.
-  const label = starred ? "Starred" : "Star";
+  // A refusal says so on the button itself — a red edge alone went unseen.
+  const label = failed ? tx("Gagal", "Failed") : starred ? "Starred" : "Star";
   const title = failed
     ? tx("GitHub menolak. Coba lagi sebentar.", "GitHub refused. Try again in a moment.")
     : context?.connected
@@ -126,7 +129,7 @@ export function StarButton({ repo }: { repo: string }) {
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9L12 3.5Z" />
       </svg>
-      <span className="dx-star-label">{label}</span>
+      <span className="dx-star-label" aria-live="polite">{label}</span>
     </button>
   );
 }

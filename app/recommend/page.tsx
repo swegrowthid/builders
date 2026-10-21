@@ -3,12 +3,12 @@ import Link from "@/app/components/responsive-link";
 import { deleteRepo } from "../actions";
 import { SiteFooter, SiteHeader } from "../components/shell";
 import { RepoForm } from "../components/repo-form";
+import { SignInInline } from "../components/sign-in-inline";
 import { SubmitButton } from "../components/submit-button";
 import { listMySubmissions } from "../lib/data";
 import { listLabel, reasonLabel, repoSlug, repoUrl, statusLabel, type OpenSourceRepo } from "../lib/open-source";
 import { readPublicly } from "../lib/public-read";
 import { currentViewer, viewerId } from "../lib/session";
-import { signInPath } from "../lib/urls";
 import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
 
@@ -79,10 +79,11 @@ export default async function RecommendPage({
           {viewer ? (
             <RepoForm mode="submit" />
           ) : (
-            <div className="ob-signin">
-              <p>{tx(locale, "Masuk dulu untuk mengusulkan repo — usulan tampil atas namamu.", "Sign in to suggest a repo — suggestions appear under your name.")}</p>
-              <Link className="dx-action" href={signInPath("/recommend")}>{tx(locale, "Masuk", "Sign in")}</Link>
-            </div>
+            <SignInInline
+              next="/recommend"
+              locale={locale}
+              message={tx(locale, "Masuk dulu untuk mengusulkan repo — usulan tampil atas namamu.", "Sign in to suggest a repo — suggestions appear under your name.")}
+            />
           )}
         </section>
 

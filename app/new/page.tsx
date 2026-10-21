@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "@/app/components/responsive-link";
-import { signInPath } from "../lib/urls";
 import { SiteFooter, SiteHeader } from "../components/shell";
 import { CreateForm } from "../components/create-form";
+import { SignInInline } from "../components/sign-in-inline";
 import { currentViewer } from "../lib/session";
 import { currentLocale } from "../lib/locale-server";
 import { tx } from "../lib/locale";
@@ -44,11 +43,11 @@ export default async function NewProject() {
         {viewer ? (
           <CreateForm />
         ) : (
-          <p className="sign-in-callout">
-            <Link className="primary-button" href={signInPath("/new")}>
-              {tx(locale, "Masuk untuk menambahkan proyek", "Sign in to add your project")}
-            </Link>
-          </p>
+          <SignInInline
+            next="/new"
+            locale={locale}
+            message={tx(locale, "Masuk dulu untuk menambahkan proyek — kamu kembali ke sini sesudahnya.", "Sign in to add your project — you come straight back here.")}
+          />
         )}
       </main>
 

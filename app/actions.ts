@@ -246,7 +246,8 @@ export async function createProject(_state: CreateState, formData: FormData): Pr
     openForGitHubContributions: text(formData, "openForGitHubContributions"),
   };
 
-  const [viewer, locale] = await Promise.all([currentViewer(), currentLocale()]);
+  // Only the id is needed; the profile row would be one more trip to the database.
+  const [viewer, locale] = await Promise.all([viewerId(), currentLocale()]);
   if (!viewer) return { errors: { form: tx(locale, "Masuk sebelum menampilkan proyek di sini.", "Sign in before showing a project here.") }, values };
 
   const link = entryMethod === "link" ? normaliseLink(values.link) : "";
@@ -354,7 +355,7 @@ export async function createProject(_state: CreateState, formData: FormData): Pr
         slug,
         title,
         tagline,
-        owner_id: viewer.id,
+        owner_id: viewer,
         stage,
         project_type: isProjectType(values.projectType) ? values.projectType : "",
         highlight: values.highlight,
@@ -392,7 +393,7 @@ export async function createProject(_state: CreateState, formData: FormData): Pr
   }
 
   seatsChanged(slug);
-  trailChanged(viewer.id, slug);
+  trailChanged(viewer, slug);
   revalidatePath("/");
   redirect(`/projects/${slug}`);
 }

@@ -40,6 +40,11 @@ const nextConfig: NextConfig = {
     // revalidatePath in app/actions.ts), so it only ever repeats a page
     // nothing has changed since.
     staleTimes: { dynamic: 120 },
+    // The stylesheet arrives inside the HTML instead of as a second request
+    // the browser must wait for before it paints anything. On a first visit
+    // over a high-latency mobile connection that request was ~0.4 s of blank
+    // screen; the cost is ~30 KB (compressed) more HTML on each page load.
+    inlineCss: true,
   },
   cacheLife: {
     // The board, the people directory, a project page. Someone posting a

@@ -23,6 +23,7 @@ export async function setStar(repo: string, starred: boolean): Promise<StarResul
 
   const response = await github(token, `/user/starred/${repo}`, starred ? "PUT" : "DELETE");
   if (response?.status === 204) return { ok: true, starred };
+  if (response) await report(response, `${starred ? "Star" : "Unstar"} ${repo}`);
   if (response?.status === 401) {
     // Revoked or expired: asking again is the only fix, and a stale cookie
     // would only hide that. A 403 is not this — it is the GitHub App missing
@@ -47,6 +48,16 @@ export async function starredAmong(repos: string[]): Promise<string[]> {
     return [];
   }
   return answers.filter(({ status }) => status === 204).map(({ repo }) => repo);
+}
+
+/**
+ * What GitHub said when it refused, in the function log. The button can only
+ * say "Failed"; this is where the reason — a missing permission (403), a
+ * token GitHub no longer accepts (401), a rate limit — can actually be read.
+ */
+async function report(response: Response, what: string): Promise<void> {
+  const body = await response.text().catch(() => "");
+  console.warn(`[ahsan] GitHub refused: ${what} → ${response.status} ${body.slice(0, 300)}`);
 }
 
 async function github(token: string, path: string, method: "GET" | "PUT" | "DELETE"): Promise<Response | null> {

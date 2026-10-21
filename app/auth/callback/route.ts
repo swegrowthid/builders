@@ -83,6 +83,9 @@ function retry(path: string, wrongHost: boolean): NextResponse | Response {
 async function keepGitHub(supabase: Supabase, session: Session | null): Promise<void> {
   if (!session) return;
   if (session.provider_token) await rememberGitHubToken(session.provider_token);
+  // Without it every Star press sends them back through GitHub again, and
+  // nothing on the page can say why.
+  else console.warn("[ahsan] GitHub sign-in finished without a provider token; the Star button cannot work for this visitor.");
 
   const identity = session.user.identities?.find((item) => item.provider === "github");
   const handle = identity?.identity_data?.user_name;
