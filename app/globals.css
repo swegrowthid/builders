@@ -1586,8 +1586,9 @@ form button[aria-busy="true"]::after,
 .dx-lang-dot { border-radius: 50%; display: inline-block; flex: none; height: 9px; width: 9px; }
 
 /* ---- results */
-.dx-toolbar { align-items: center; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 12px; }
-.dx-search { flex: 1; margin: 0; max-width: 420px; }
+/* Wraps rather than squeezing the search: below 280px it is no search box at all. */
+.dx-toolbar { align-items: center; display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; margin-bottom: 12px; }
+.dx-search { flex: 1 1 280px; margin: 0; max-width: 420px; }
 .dx-search label {
   align-items: center; border: 1px solid var(--dx-line); border-radius: 8px; display: flex; gap: 8px;
   height: 38px; margin: 0; padding: 0 11px;
@@ -1595,7 +1596,17 @@ form button[aria-busy="true"]::after,
 .dx-search label:focus-within { border-color: var(--dx-ink); box-shadow: 0 0 0 3px light-dark(rgba(9, 9, 11, .06), rgba(0, 0, 0, .12)); }
 .dx-search svg { fill: none; flex: none; height: 15px; stroke: var(--dx-muted); stroke-width: 2; width: 15px; }
 .dx-search input { background: none; border: 0; font-size: 14px; margin: 0; min-width: 0; outline: none; padding: 0; width: 100%; }
-.dx-toolbar-end { align-items: center; display: flex; flex: none; gap: 14px; }
+/* Local, global, or both: a segmented toggle beside the search. */
+.dx-scope { background: var(--dx-soft); border-radius: 9px; display: flex; flex: none; gap: 2px; padding: 3px; }
+.dx-scope a {
+  align-items: center; border-radius: 7px; color: var(--dx-muted); display: inline-flex; font-size: 13.5px; font-weight: 550;
+  gap: 6px; height: 32px; padding: 0 12px; white-space: nowrap;
+}
+.dx-scope a:hover { color: var(--dx-ink); }
+.dx-scope a.is-active { background: light-dark(#ffffff, #3a3a3e); box-shadow: 0 1px 2px light-dark(rgba(9, 9, 11, .08), rgba(0, 0, 0, .3)); color: var(--dx-ink); }
+.dx-scope span { color: var(--dx-faint); font-family: var(--font-geist-mono), monospace; font-size: 11.5px; }
+.dx-scope a.is-active span { color: var(--dx-muted); }
+.dx-toolbar-end { align-items: center; display: flex; flex: none; gap: 14px; margin-left: auto; }
 .dx-sort { align-items: center; display: flex; margin: 0; }
 /* Not a data-entry field: out from under `form label` and `form select`. */
 .dx-sort label { display: block; margin: 0; }
@@ -1815,6 +1826,8 @@ form button[aria-busy="true"]::after,
 
 @media (max-width: 900px) {
   .dx-layout { gap: 18px; grid-template-columns: minmax(0, 1fr); padding-top: 16px; }
+  /* The search takes its own row; the toggle, the count and the sort share the next. */
+  .dx-search { flex-basis: 100%; max-width: none; }
   /* On a phone the sidebar folds behind a bar — what is applied, and a
      Filter button — and opens as a full-height sheet, as GitHub's does. */
   /* Stays pinned under the header while the list scrolls, so the filters are
@@ -1891,7 +1904,8 @@ form button[aria-busy="true"]::after,
   .dx-head h1 { font-size: 22px; }
   .dx-toolbar { align-items: stretch; flex-direction: column; gap: 8px; }
   .dx-search { max-width: none; }
-  .dx-toolbar-end { justify-content: space-between; }
+  .dx-toolbar-end { justify-content: space-between; margin-left: 0; }
+  .dx-scope a { flex: 1; justify-content: center; }
 }
 
 /* The rows answer to the width of the results column, not of the screen:

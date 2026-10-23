@@ -385,8 +385,8 @@ export function sortLabel(sort: DirectorySort | "", track: DirectoryTrack, local
 
 export type DirectoryFilters = {
   track: DirectoryTrack;
-  /** Whether the maintainers are in the community, or recommended from outside. Empty for any. */
-  source: DirectorySource | "";
+  /** Local or global open source. Empty for both. */
+  scope?: DirectoryScope | "";
   /** Only entries taking this kind of help. Empty for any. */
   open?: DirectoryOpening | "";
   /** Only entries at one of these PR tiers. Empty for any. */
@@ -439,7 +439,7 @@ export function filterDirectory(entries: DirectoryEntry[], filters: DirectoryFil
   const stages = filters.stage ?? [];
   const matched = entries.filter((entry) => {
     if (entry.track !== filters.track) return false;
-    if (filters.source && entry.source !== filters.source) return false;
+    if (filters.scope && scopeOf(entry) !== filters.scope) return false;
     if (filters.open && !isOpenFor(entry, filters.open)) return false;
     if (tiers.length > 0 && !(entry.prTier && tiers.includes(entry.prTier))) return false;
     if (stages.length > 0 && !(entry.stage && stages.includes(entry.stage))) return false;
@@ -555,8 +555,34 @@ export function directoryFacets(entries: DirectoryEntry[], track: DirectoryTrack
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
 }
 
-export function sourceLabel(source: DirectorySource, locale: Locale): string {
-  return source === "community" ? tx(locale, "Dari komunitas", "From the community") : tx(locale, "Rekomendasi", "Recommended");
+/**
+ * Local or global: the toggle on the code path. Local is what somebody here
+ * can reach — a repo we maintain or a member's product — and a repository
+ * whose maintainers are Indonesian, which a visitor counts as local whatever
+ * list it sits on. Global is the rest of open source.
+ */
+export const DIRECTORY_SCOPES = ["local", "global"] as const;
+export type DirectoryScope = (typeof DIRECTORY_SCOPES)[number];
+
+export function isDirectoryScope(value: string): value is DirectoryScope {
+  return (DIRECTORY_SCOPES as readonly string[]).includes(value);
+}
+
+export function scopeOf(entry: DirectoryEntry): DirectoryScope {
+  return entry.source === "community" || entry.badges.some((badge) => badge.kind === "indonesian") ? "local" : "global";
+}
+
+export function scopeLabel(scope: DirectoryScope | "", locale: Locale): string {
+  if (scope === "local") return tx(locale, "Lokal", "Local");
+  if (scope === "global") return tx(locale, "Global", "Global");
+  return tx(locale, "Semua", "All");
+}
+
+/** How many entries on one path are local and global. Empty when one of them has none: no toggle to offer. */
+export function scopeCounts(entries: DirectoryEntry[], track: DirectoryTrack): { scope: DirectoryScope; count: number }[] {
+  const onTrack = entries.filter((entry) => entry.track === track);
+  const counts = DIRECTORY_SCOPES.map((scope) => ({ scope, count: onTrack.filter((entry) => scopeOf(entry) === scope).length }));
+  return counts.every(({ count }) => count > 0) ? counts : [];
 }
 
 /**

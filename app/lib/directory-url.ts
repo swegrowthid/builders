@@ -2,7 +2,7 @@ import { isBadgeKind } from "./badges";
 import {
   isDirectoryOpening,
   isDirectorySort,
-  isDirectorySource,
+  isDirectoryScope,
   isDirectoryTrack,
   isPRTier,
   type DirectoryFilters,
@@ -40,13 +40,16 @@ function readAll(query: Query, key: string): string[] {
  */
 export function readFilters(query: Query): DirectoryFilters {
   const track = read(query, "track");
-  const source = read(query, "source");
+  // `source` was the sidebar's community-or-recommended group that the toggle
+  // replaced; an old link keeps meaning roughly what it did.
+  const legacy = read(query, "source");
+  const scope = read(query, "scope") || (legacy === "community" ? "local" : legacy === "recommended" ? "global" : "");
   const badge = read(query, "badge");
   const open = read(query, "open");
   const sort = read(query, "sort");
   return {
     track: isDirectoryTrack(track) ? track : "github",
-    source: isDirectorySource(source) ? source : "",
+    scope: isDirectoryScope(scope) ? scope : "",
     open: isDirectoryOpening(open) ? open : "",
     pr: readAll(query, "pr").filter(isPRTier),
     badge: isBadgeKind(badge) ? badge : "",
@@ -67,7 +70,7 @@ export function readPage(query: Query): string {
 export function pathFor(filters: DirectoryFilters, page = 1): string {
   const params = new URLSearchParams();
   if (filters.track !== "github") params.set("track", filters.track);
-  if (filters.source) params.set("source", filters.source);
+  if (filters.scope) params.set("scope", filters.scope);
   if (filters.open) params.set("open", filters.open);
   for (const tier of filters.pr ?? []) params.append("pr", tier);
   if (filters.badge) params.set("badge", filters.badge);

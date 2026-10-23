@@ -11,7 +11,6 @@ import { LinkIcon } from "./link-icons";
 import { StarCount, StarLink } from "./star-button";
 import { RelativeTime } from "./relative-time";
 import {
-  DIRECTORY_SOURCES,
   DIRECTORY_TRACKS,
   badgeCounts,
   directoryFacets,
@@ -25,7 +24,8 @@ import {
   prTierLabel,
   sortLabel,
   sortsFor,
-  sourceLabel,
+  scopeCounts,
+  scopeLabel,
   stageCounts,
   type DirectoryEntry,
   type DirectoryFilters,
@@ -52,7 +52,7 @@ function toggled<T>(list: readonly T[] | undefined, value: T): T[] {
 function HiddenFilters({ filters, except }: { filters: DirectoryFilters; except: "q" | "sort" }) {
   const fields: [string, string][] = [
     ...(filters.track !== "github" ? [["track", filters.track] as [string, string]] : []),
-    ...(filters.source ? [["source", filters.source] as [string, string]] : []),
+    ...(filters.scope ? [["scope", filters.scope] as [string, string]] : []),
     ...(filters.open ? [["open", filters.open] as [string, string]] : []),
     ...(filters.pr ?? []).map((tier) => ["pr", tier] as [string, string]),
     ...(filters.badge ? [["badge", filters.badge] as [string, string]] : []),
@@ -138,35 +138,31 @@ export function DirectoryView({
   const filterKey = pathFor(filters);
   const matched = useMemo(() => filterDirectory(entries, filters), [entries, filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = paginate(matched, requestedPage);
-  const onTrack = entries.filter((entry) => entry.track === filters.track);
   const facets = directoryFacets(entries, filters.track);
-  const sources = DIRECTORY_SOURCES.map((source) => ({
-    source,
-    count: onTrack.filter((entry) => entry.source === source).length,
-  })).filter(({ count }) => count > 0);
-  const badges = badgeCounts(entries, filters.track);
+  const scopes = scopeCounts(entries, filters.track);
+  // Indonesian maintainers count as local, so the toggle asks it; the card keeps the badge.
+  const badges = badgeCounts(entries, filters.track).filter(({ kind }) => kind !== "indonesian");
   const openings = openingCounts(entries, filters.track);
   const tiers = filters.track === "github" ? prTierCounts(entries) : [];
   const stages = stageCounts(entries, filters.track);
   const sorts = sortsFor(filters.track);
   const code = filters.track === "github";
   const filtered = Boolean(
-    filters.source || filters.open || filters.pr?.length || filters.badge || filters.facet.length || filters.stage?.length || filters.q,
+    filters.scope || filters.open || filters.pr?.length || filters.badge || filters.facet.length || filters.stage?.length || filters.q,
   );
   // Reset drops what narrows the list; the order asked for stays.
-  const reset = pathFor({ track: filters.track, source: "", open: "", pr: [], badge: "", facet: [], stage: [], sort: filters.sort, q: "" });
+  const reset = pathFor({ track: filters.track, scope: "", open: "", pr: [], badge: "", facet: [], stage: [], sort: filters.sort, q: "" });
   // What a phone's filter bar shows as chips, each one a link that drops it.
   const active: ActiveFilter[] = [
     ...(filters.pr ?? []).map((tier) => ({ label: prTierLabel(tier, locale), href: pathFor({ ...filters, pr: toggled(filters.pr, tier) }) })),
     ...(filters.stage ?? []).map((stage) => ({ label: stageLabel(stage, locale), href: pathFor({ ...filters, stage: toggled(filters.stage, stage) }) })),
     ...(filters.open ? [{ label: openingLabel(filters.open, locale), href: pathFor({ ...filters, open: "" }) }] : []),
     ...(filters.badge ? [{ label: badgeKindLabel(filters.badge, locale), href: pathFor({ ...filters, badge: "" }) }] : []),
-    ...(filters.source ? [{ label: sourceLabel(filters.source, locale), href: pathFor({ ...filters, source: "" }) }] : []),
     ...filters.facet.map((facet) => ({ label: facet, href: pathFor({ ...filters, facet: toggled(filters.facet, facet) }) })),
   ];
   // A new path starts plain: its groups and its orders are not this one's.
   const trackHref = (track: DirectoryTrack) =>
-    pathFor({ track, source: "", open: "", pr: [], badge: "", facet: [], stage: [], sort: "", q: filters.q });
+    pathFor({ track, scope: "", open: "", pr: [], badge: "", facet: [], stage: [], sort: "", q: filters.q });
 
   return (
     <InstantNav navigate={navigate}>
@@ -267,20 +263,6 @@ export function DirectoryView({
           </FacetGroup>
         ) : null}
 
-        {sources.length > 1 ? (
-          <FacetGroup title={tx(locale, "Sumber", "Source")}>
-            {sources.map(({ source, count }) => (
-              <FacetLink
-                key={source}
-                active={filters.source === source}
-                href={pathFor({ ...filters, source: filters.source === source ? "" : source })}
-                count={count}
-              >
-                {sourceLabel(source, locale)}
-              </FacetLink>
-            ))}
-          </FacetGroup>
-        ) : null}
 
         {facets.length > 0 ? (
           <FacetGroup
@@ -321,6 +303,23 @@ export function DirectoryView({
               <input type="search" name="q" value={q} onChange={(event) => search(event.target.value)} placeholder={tx(locale, "Cari project…", "Search projects…")} />
             </label>
           </form>
+          {/* Local or global: the first thing somebody narrows open source by,
+              so a toggle in plain sight rather than a group in the sidebar. */}
+          {scopes.length > 0 ? (
+            <nav className="dx-scope" aria-label={tx(locale, "Lokal atau global", "Local or global")}>
+              {(["", ...scopes.map(({ scope }) => scope)] as const).map((scope) => (
+                <InstantLink
+                  key={scope || "all"}
+                  className={(filters.scope ?? "") === scope ? "is-active" : ""}
+                  aria-current={(filters.scope ?? "") === scope ? "true" : undefined}
+                  href={pathFor({ ...filters, scope })}
+                >
+                  {scopeLabel(scope, locale)}
+                  {scope ? <span>{scopes.find((each) => each.scope === scope)?.count}</span> : null}
+                </InstantLink>
+              ))}
+            </nav>
+          ) : null}
           {/* How many, and in what order: together at the row's end, above
               the cards' own buttons. */}
           <div className="dx-toolbar-end">

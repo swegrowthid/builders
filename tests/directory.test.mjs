@@ -267,10 +267,10 @@ test("one path at a time, narrowed by its chip and by search, keeping the given 
   assert.equal(filterDirectory(entries, { ...none, track: "role", facet: ["QA"] }).length, 0);
   assert.ok(filterDirectory(entries, { ...none, track: "github", q: "bahasa" }).length > 0);
   assert.equal(filterDirectory(entries, { ...none, track: "github", q: "nothing like this" }).length, 0);
-  assert.deepEqual(
-    filterDirectory(entries, { ...none, track: "github", source: "recommended" }).map((entry) => entry.source),
-    OPEN_SOURCE_REPOS.filter((repo) => repo.list === "recommended").map(() => "recommended"),
-  );
+  // Global is outside open source; a recommended repo with Indonesian maintainers counts as local.
+  assert.deepEqual(filterDirectory(entries, { ...none, track: "github", scope: "global" }).map((entry) => entry.name), ["next.js"]);
+  const local = filterDirectory(entries, { ...none, track: "github", scope: "local" }).map((entry) => entry.name);
+  assert.ok(local.includes("heimdall") && local.includes("builders") && !local.includes("next.js"));
 });
 
 test("chips are the languages on the code path and the roles on the role path", () => {
