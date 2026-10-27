@@ -23,13 +23,13 @@ import { isOss, site } from "../lib/site";
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await currentLocale();
   const title = isOss
-    ? tx(locale, `Repo pilihan — ${site.name}`, `Picked repos — ${site.name}`)
+    ? tx(locale, `Direktori — ${site.name}`, `Directory — ${site.name}`)
     : tx(locale, "Direktori produk — Builders", "Product directory — Builders");
   const description = isOss
     ? tx(
         locale,
-        "Repo open source yang menurut komunitas swegrowth bagus buat mulai kontribusi—bukan daftar lengkap. Pilih satu, kirim PR, biar kelihatan.",
-        "Open source repos the swegrowth community thinks are good places to start contributing—not a complete list. Pick one, send a PR, let it be seen.",
+        "Repo open source rekomendasi dan kurasi komunitas swegrowth, yang bagus buat mulai kontribusi. Pilih satu, kirim PR, biar kelihatan.",
+        "Open source repos recommended and curated by the swegrowth community, good places to start contributing. Pick one, send a PR, let it be seen.",
       )
     : tx(
         locale,
@@ -64,14 +64,14 @@ export default async function Directory({ searchParams }: { searchParams?: Searc
 
         <header className="dx-head">
           <div>
-            <h1>{isOss ? tx(locale, "Repo pilihan", "Picked repos") : tx(locale, "Direktori produk", "Product directory")}</h1>
+            <h1>{isOss ? tx(locale, "Direktori", "Directory") : tx(locale, "Direktori produk", "Product directory")}</h1>
             <p className="dx-head-community">
               {/* What the place is for, in one line, for somebody who has just landed. */}
               {isOss
                 ? tx(
                     locale,
-                    "Repo yang menurut kami bagus buat mulai kontribusi—bukan daftar lengkap. Butuh lebih banyak pilihan? ",
-                    "Repos we think are good places to start contributing—not a complete list. Want more to choose from? ",
+                    "Repo open source rekomendasi dan kurasi komunitas, yang bagus buat mulai kontribusi. Mau lihat lebih banyak repo global? Cek ",
+                    "Open source repos recommended and curated by the community, good places to start contributing. Want more global repos? See ",
                   )
                 : null}
               {isOss ? (

@@ -60,7 +60,7 @@ type NavLink = { href: string; label: string; labelId: string; key: Section; ico
  */
 const PRIMARY_LINKS: NavLink[] = [
   { href: "/", label: "Activity", labelId: "Aktivitas", key: "activity", icon: isOss ? "pull-request" : "pulse" },
-  { href: "/directory", label: isOss ? "Picked repos" : "Directory", labelId: isOss ? "Repo pilihan" : "Direktori", key: "directory", icon: "directory" },
+  { href: "/directory", label: "Directory", labelId: "Direktori", key: "directory", icon: "directory" },
 ];
 
 /* The pages that answer for the site — how it works, what this is, and where to say it is broken. */
