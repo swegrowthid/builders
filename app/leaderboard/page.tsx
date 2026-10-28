@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Link from "@/app/components/responsive-link";
 import { SiteFooter, SiteHeader } from "../components/shell";
 import { Skeleton } from "../components/skeleton";
+import { BoardFilters } from "../components/board-filters";
 import { BoardInfo, ThisWeek, WeekDots } from "../components/week-dots";
 import { leaderboardIssueUrl, shareCard } from "../content";
 import { currentLocale } from "../lib/locale-server";
@@ -14,12 +15,8 @@ import { localRepos } from "../lib/directory-read";
 import { readPublicly } from "../lib/public-read";
 import { currentViewer } from "../lib/session";
 import { githubHandle } from "../lib/oss";
-import { leaderboardPath, type LeaderboardChoice } from "../lib/activity-url";
+import type { LeaderboardChoice } from "../lib/activity-url";
 import {
-  ACTIVITY_PLACES,
-  BOARD_COUNTS,
-  BOARD_OF,
-  BOARD_SPANS,
   MILESTONES,
   boardEntries,
   boardWindow,
@@ -220,7 +217,7 @@ async function LeaderboardBody({ query, locale }: { query: SearchParams; locale:
             {span === "season" ? tx(locale, "Papan musim ini", "This season's board") : tx(locale, `Papan ${span} minggu terakhir`, `The last ${span} weeks`)}{" "}
             <BoardInfo weeks={boardWeeks} span={span} of={of} count={count} locale={locale} />
           </h2>
-          <BoardChoices choice={choice} places={local.length > 0} locale={locale} />
+          <BoardFilters choice={choice} places={local.length > 0} locale={locale} />
         </div>
         {unavailable ? null : (
           <ThisWeek
@@ -348,78 +345,6 @@ function YourSeason({
         </Link>
       )}
     </section>
-  );
-}
-
-/**
- * What the board counts, each choice a row of plain links, so it works
- * without a script: whose repos, which PRs, which weeks, and — for
- * contributions — local or global.
- */
-function BoardChoices({ choice, places, locale }: { choice: LeaderboardChoice; places: boolean; locale: Locale }) {
-  return (
-    <div className="lb-choices">
-      <Pills
-        label={tx(locale, "Repo siapa", "Whose repos")}
-        options={BOARD_OF}
-        chosen={choice.of}
-        names={{ external: tx(locale, "Kontribusi", "Contributions"), own: tx(locale, "Repo sendiri", "Own repos") }}
-        href={(of) => leaderboardPath({ ...choice, of })}
-      />
-      <Pills
-        label={tx(locale, "PR yang dihitung", "PRs counted")}
-        options={BOARD_COUNTS}
-        chosen={choice.count}
-        names={{ opened: tx(locale, "PR dibuka", "PRs opened"), merged: tx(locale, "Merged saja", "Merged only") }}
-        href={(count) => leaderboardPath({ ...choice, count })}
-      />
-      <Pills
-        label={tx(locale, "Minggu yang dihitung", "Weeks counted")}
-        options={BOARD_SPANS}
-        chosen={choice.weeks}
-        names={{ "4": tx(locale, "4 minggu", "4 weeks"), "8": tx(locale, "8 minggu", "8 weeks"), season: tx(locale, "Musim ini", "This season") }}
-        href={(weeks) => leaderboardPath({ ...choice, weeks })}
-      />
-      {places && choice.of === "external" ? (
-        <Pills
-          label={tx(locale, "Repo lokal atau global", "Local or global repos")}
-          options={ACTIVITY_PLACES}
-          chosen={choice.place}
-          names={{ all: tx(locale, "Semua", "All"), local: tx(locale, "Lokal", "Local"), global: tx(locale, "Global", "Global") }}
-          href={(place) => leaderboardPath({ ...choice, place })}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function Pills<T extends string>({
-  label,
-  options,
-  chosen,
-  names,
-  href,
-}: {
-  label: string;
-  options: readonly T[];
-  chosen: T;
-  names: Record<T, string>;
-  href: (option: T) => string;
-}) {
-  return (
-    <nav className="lb-places" aria-label={label}>
-      {options.map((option) => (
-        <Link
-          key={option}
-          className={`lb-place ${option === chosen ? "is-set" : ""}`}
-          href={href(option)}
-          aria-current={option === chosen ? "true" : undefined}
-          scroll={false}
-        >
-          {names[option]}
-        </Link>
-      ))}
-    </nav>
   );
 }
 

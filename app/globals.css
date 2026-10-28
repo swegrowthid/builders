@@ -1646,8 +1646,14 @@ form button[aria-busy="true"]::after,
   background-position: right 9px center; background-repeat: no-repeat; background-size: 12px 12px;
 }
 .ax-board select.ax-pill:hover, .ax-board select.ax-pill:focus-visible { background-color: light-dark(rgba(255, 255, 255, .28), rgba(255, 255, 255, .28)); outline: none; }
-/* A choice that is not the default: the pill turns white, its text purple. */
-.ax-board .ax-pill.is-set, .ax-board select.ax-pill.is-set:hover { background-color: light-dark(#ffffff, #ffffff); color: light-dark(#6639ba, #4c2889); }
+/* Focus as a ring, not a colour: a select keeps focus after a choice, and
+   must still look chosen. */
+.ax-board select.ax-pill:focus-visible { box-shadow: 0 0 0 2px light-dark(rgba(255, 255, 255, .55), rgba(255, 255, 255, .55)); }
+/* A choice that is not the default: the pill turns white, its text purple —
+   hovered or focused too. */
+.ax-board .ax-pill.is-set, .ax-board select.ax-pill.is-set:hover, .ax-board select.ax-pill.is-set:focus-visible {
+  background-color: light-dark(#ffffff, #ffffff); color: light-dark(#6639ba, #4c2889);
+}
 /* The arrow only on a pill that opens a picker; a plain one — "own repos" — just names the feed's choice. */
 .ax-board select.ax-pill.is-set {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236639ba' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
@@ -2879,15 +2885,25 @@ a.ab-card:hover h3 { color: light-dark(#0969da, #4493f8); }
 .lb-milestones small { color: var(--dx-muted); font-size: 12px; margin-top: 4px; }
 .lb-milestone-icon { font-size: 22px; line-height: 1.2; }
 
-.lb-board-head { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; }
+.lb-board-head { display: grid; gap: 10px; }
 .lb-board-head h2 { margin: 0; }
-.lb-places { display: flex; flex-wrap: wrap; gap: 6px; }
-/* The weeks counted, then the place: two rows of pills. */
-.lb-choices { display: grid; gap: 6px; }
+/* BoardFilters (board-filters.tsx): one row of pills that open a native
+   picker, the chosen-but-not-default ones in purple, and the PR button. */
+.lb-filters { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
+.lb-filters label { display: block; margin: 0; }
+.lb-filter {
+  appearance: none; background: transparent no-repeat right 10px center / 12px 12px; border: 1px solid var(--dx-line); border-radius: 99px; color: var(--dx-text);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  cursor: pointer; field-sizing: content; font: inherit; font-size: 13px; font-weight: 600; height: 32px; margin: 0; padding: 0 30px 0 12px; width: auto;
+}
+.lb-filter:hover { border-color: var(--dx-muted); }
+.lb-filter:focus-visible { box-shadow: 0 0 0 2px light-dark(rgba(130, 80, 223, .35), rgba(179, 146, 240, .35)); outline: none; }
+.lb-filter.is-set { border-color: light-dark(#8250df, #b392f0); color: light-dark(#8250df, #b392f0); }
+.lb-filter option { color: var(--dx-ink); }
+.lb-filters noscript button { background: var(--dx-soft); border: 0; border-radius: 99px; font-size: 12.5px; height: 32px; padding: 0 12px; }
+.lb-count { align-items: center; border: 1px solid var(--dx-line); border-radius: 99px; display: inline-flex; height: 32px; justify-content: center; width: 32px; }
+.lb-count:hover { border-color: var(--dx-muted); }
 .lb-week strong { color: var(--dx-ink); }
-.lb-place { border: 1px solid var(--dx-line); border-radius: 99px; color: var(--dx-text); font-size: 12.5px; font-weight: 600; padding: 4px 10px; }
-.lb-place:hover { border-color: var(--dx-muted); }
-.lb-place.is-set { background: light-dark(#8250df, #b392f0); border-color: transparent; color: light-dark(#ffffff, #1f1f1f); }
 .lb-table { margin-top: 12px; max-width: 100%; overflow-x: auto; }
 .lb-board { border-collapse: collapse; font-size: 13.5px; width: 100%; }
 .lb-board th { border-bottom: 1px solid var(--dx-line); color: var(--dx-muted); font-size: 12px; font-weight: 600; padding: 8px 10px; text-align: left; }

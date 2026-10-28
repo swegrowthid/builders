@@ -644,7 +644,7 @@ function Leaderboard({
   );
 }
 
-function PullRequestIcon({ merged }: { merged: boolean }) {
+export function PullRequestIcon({ merged }: { merged: boolean }) {
   return (
     <svg className={`ax-pr-icon ${merged ? "is-merged" : "is-open"}`} viewBox="0 0 16 16" aria-hidden="true">
       {merged ? (
