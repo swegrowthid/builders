@@ -49,7 +49,7 @@ import {
 } from "../lib/github-activity";
 import type { ReactionCount } from "../lib/reactions";
 import { tx, type Locale } from "../lib/locale";
-import { WeekDots } from "./week-dots";
+import { SeasonInfo, WeekDots } from "./week-dots";
 
 const PAGE_SIZE = 20;
 /** Repositories shown under the leaderboard before "See all": a handful, not the list. */
@@ -514,7 +514,8 @@ function Leaderboard({
     <aside className="ax-board tone-done" aria-labelledby="board-title">
       <div className="ax-board-head">
         <h2 id="board-title">
-          <span aria-hidden="true">🏆</span> {tx(locale, "Leaderboard", "Leaderboard")}
+          <span aria-hidden="true">🏆</span> {own ? "Leaderboard" : "Weeks of contribution"}
+          {own ? null : <SeasonInfo season={season} locale={locale} />}
         </h2>
         {/* The board's choices read as one line under its name — "season
             Oct–Dec 2026 · all repos" — the place a pill that opens a native picker.

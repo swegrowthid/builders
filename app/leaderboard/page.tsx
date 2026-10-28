@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "@/app/components/responsive-link";
 import { SiteFooter, SiteHeader } from "../components/shell";
 import { Skeleton } from "../components/skeleton";
-import { WeekDots } from "../components/week-dots";
+import { SeasonInfo, WeekDots } from "../components/week-dots";
 import { leaderboardIssueUrl, shareCard } from "../content";
 import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
@@ -188,7 +188,9 @@ async function LeaderboardBody({ query, locale }: { query: SearchParams; locale:
 
       <section className="ab-section" aria-labelledby="board-title">
         <div className="lb-board-head">
-          <h2 id="board-title">{tx(locale, "Papan musim ini", "This season's board")}</h2>
+          <h2 id="board-title">
+            {tx(locale, "Papan musim ini", "This season's board")} <SeasonInfo season={season} locale={locale} />
+          </h2>
           {local.length > 0 ? <PlacePills place={place} locale={locale} /> : null}
         </div>
         {result.unavailable ? (
@@ -266,7 +268,9 @@ function YourSeason({
 
   return (
     <section className={`lb-you ${thisWeek ? "is-done" : ""}`} aria-labelledby="you-title">
-      <h2 id="you-title">{tx(locale, "Progresmu musim ini", "Your season so far")}</h2>
+      <h2 id="you-title">
+        {tx(locale, "Progresmu musim ini", "Your season so far")} <SeasonInfo season={season} locale={locale} />
+      </h2>
       <WeekDots weeks={weeks} current={season.current} locale={locale} />
       <dl className="lb-you-stats">
         <div>

@@ -1619,14 +1619,16 @@ form button[aria-busy="true"]::after,
 .ax-side { display: grid; gap: 20px; position: sticky; top: calc(var(--header-h) + 20px); }
 /* A plain card like the rest of the page, with purple — a merged PR's
    colour — in its head, its scores and its links. */
-.ax-board { border: 1px solid var(--dx-line); border-radius: 12px; overflow: hidden; padding: 0 0 12px; }
+/* Not overflow:hidden, which would cut off the ⓘ's explanation; the head
+   rounds its own corners instead. */
+.ax-board { border: 1px solid var(--dx-line); border-radius: 12px; padding: 0 0 12px; }
 .ax-board > :not(.ax-board-head) { margin-left: 12px; margin-right: 12px; }
 /* The head is the scoreboard: a deep purple — a merged PR's colour — over a
    plain list, with the title and the pills in white on it. White on purple in
    both themes, so those pairs name the same colour twice. */
 .ax-board-head {
   background: linear-gradient(135deg, light-dark(#8250df, #6e40c9), light-dark(#6639ba, #4c2889)); display: grid; gap: 8px;
-  margin-bottom: 8px; padding: 14px 16px 12px;
+  border-radius: 11px 11px 0 0; margin-bottom: 8px; padding: 14px 16px 12px;
 }
 .ax-board h2 { align-items: center; color: light-dark(#ffffff, #ffffff); display: flex; font-size: 15px; font-weight: 700; gap: 6px; margin: 0; }
 /* "this month · all repos": the board's choices as one line of pills. */
@@ -2946,3 +2948,22 @@ a.ab-card:hover h3 { color: light-dark(#0969da, #4493f8); }
 .level-track li.is-current { color: var(--ink); }
 .level-track li.is-current::before { background: var(--ink); border-color: var(--ink); }
 .stage-buttons button { border-color: var(--line-2); }
+
+/* SeasonInfo (week-dots.tsx): an ⓘ whose explanation opens on hover or focus,
+   under the heading it sits in and never wider than it, so a phone never
+   scrolls sideways. */
+:has(> .info-tip) { position: relative; }
+.info-tip { display: inline-block; vertical-align: middle; }
+.info-tip-icon {
+  align-items: center; background: none; border: 1.5px solid currentColor; border-radius: 50%; color: inherit; cursor: help; display: inline-flex;
+  font: italic 700 10px/1 Georgia, serif; height: 16px; justify-content: center; margin: 0 0 0 4px; opacity: .75; padding: 0; width: 16px;
+}
+.info-tip-icon:hover, .info-tip-icon:focus-visible { opacity: 1; }
+.info-tip-body {
+  background: light-dark(#fff, #26262a); border: 1px solid var(--dx-line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  color: var(--dx-text); font-size: 12.5px; font-weight: 400; letter-spacing: normal; line-height: 1.5; opacity: 0; padding: 10px 12px;
+  left: 0; pointer-events: none; position: absolute; text-align: left; top: calc(100% + 6px); transition: opacity .12s;
+  visibility: hidden; white-space: normal; width: min(300px, calc(100vw - 32px)); z-index: 30;
+}
+.info-tip-body b { color: var(--dx-ink); font-weight: 650; }
+.info-tip:hover .info-tip-body, .info-tip:focus-within .info-tip-body { opacity: 1; pointer-events: auto; visibility: visible; }
