@@ -490,9 +490,9 @@ function Leaderboard({
   const viewerKey = viewerHandle?.toLowerCase() ?? "";
   const viewerRank = viewerKey ? all.findIndex(({ person }) => person.handle.toLowerCase() === viewerKey) : -1;
   const placeLabels: Record<ActivityPlace, string> = {
-    all: tx(locale, "semua repo", "all repos"),
-    local: tx(locale, "repo lokal", "local repos"),
-    global: tx(locale, "repo global", "global repos"),
+    all: tx(locale, "semua", "all"),
+    local: tx(locale, "lokal", "local"),
+    global: tx(locale, "global", "global"),
   };
   const spanLabels: Record<BoardSpan, string> = {
     "4": tx(locale, "4 minggu", "4 weeks"),

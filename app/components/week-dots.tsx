@@ -53,6 +53,12 @@ export function BoardInfo({
           <>
             {countedRule(of, count, locale)}
             <br />
+            {of === "external" ? (
+              <>
+                <b>Lokal</b> = proyek member komunitas atau repo dengan maintainer Indonesia; <b>global</b> = sisanya.
+                <br />
+              </>
+            ) : null}
             <b>x/{soFar}</b>{" "}
             {span === "season"
               ? `= minggu yang ada PR-nya, dari ${soFar} minggu musim ini yang sudah berjalan (musim ${months}, ${total} minggu).`
@@ -68,6 +74,12 @@ export function BoardInfo({
           <>
             {countedRule(of, count, locale)}
             <br />
+            {of === "external" ? (
+              <>
+                <b>Local</b> = a community member&apos;s project or a repo with Indonesian maintainers; <b>global</b> = the rest.
+                <br />
+              </>
+            ) : null}
             <b>x/{soFar}</b>{" "}
             {span === "season"
               ? `= weeks with a PR, out of the season's ${soFar} weeks so far (${months}, ${total} weeks).`

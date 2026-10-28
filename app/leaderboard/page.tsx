@@ -385,7 +385,7 @@ function BoardChoices({ choice, places, locale }: { choice: LeaderboardChoice; p
           label={tx(locale, "Repo lokal atau global", "Local or global repos")}
           options={ACTIVITY_PLACES}
           chosen={choice.place}
-          names={{ all: tx(locale, "Semua repo", "All repos"), local: tx(locale, "Repo lokal", "Local repos"), global: tx(locale, "Repo global", "Global repos") }}
+          names={{ all: tx(locale, "Semua", "All"), local: tx(locale, "Lokal", "Local"), global: tx(locale, "Global", "Global") }}
           href={(place) => leaderboardPath({ ...choice, place })}
         />
       ) : null}
