@@ -55,7 +55,7 @@ import {
 } from "../lib/github-activity";
 import type { ReactionCount } from "../lib/reactions";
 import { tx, type Locale } from "../lib/locale";
-import { BoardInfo, ThisWeek, WeekDots } from "./week-dots";
+import { BoardInfo, ThisWeek } from "./week-dots";
 
 const PAGE_SIZE = 20;
 /** Repositories shown under the leaderboard before "See all": a handful, not the list. */
@@ -366,21 +366,6 @@ export function ActivityView({
   );
 }
 
-/** What fills a week on the board, in a sentence: the place the feed is filtered to. */
-function countedLabel(current: ActivityFilters, locale: Locale): string {
-  const where =
-    current.place === "local"
-      ? tx(locale, "repo lokal", "local repos")
-      : current.place === "global"
-        ? tx(locale, "repo global", "global repos")
-        : tx(locale, "repo orang lain", "other people's repos");
-  return tx(
-    locale,
-    `1 minggu 1 PR: minggu terisi kalau ada PR yang dibuka ke ${where}, direview atau sudah di-merge. `,
-    `One PR a week: a week counts when a PR was opened to ${where}, in review or merged. `,
-  );
-}
-
 /** Repos shown before "See all" on a phone, where the card sits above the feed. */
 const REPOS_SHOWN_PHONE = 3;
 /** Faces shown per repo before "+n". */
@@ -534,7 +519,7 @@ function Leaderboard({
       <div className="ax-board-head">
         <h2 id="board-title">
           <span aria-hidden="true">🏆</span> {own ? "Leaderboard" : "Weeks of contribution"}
-          {own ? null : <BoardInfo weeks={boardWeeks} span={current.weeks} locale={locale} />}
+          {own ? null : <BoardInfo weeks={boardWeeks} span={current.weeks} dots={false} locale={locale} />}
         </h2>
         {/* The board's choices read as one line under its name — "season
             Oct–Dec 2026 · all repos" — the place a pill that opens a native picker.
@@ -632,7 +617,6 @@ function Leaderboard({
                   <Avatar handle={person.handle} size={24} />
                   <span className="ax-board-who">
                     <span className="ax-board-name">{person.name || `@${person.handle}`}</span>
-                    {board.own ? null : <WeekDots weeks={board.rows[index].weeks} current={boardWeeks.current} locale={locale} />}
                   </span>
                   <span className="ax-board-score">
                     <strong>{main}</strong>
@@ -673,7 +657,7 @@ function Leaderboard({
       <p className="ax-board-foot">
         {own
           ? tx(locale, "Dihitung dari PR merged ke repo sendiri; seri dipecah jumlah commit. ", "Counts PRs merged into their own repos; commits break ties. ")
-          : countedLabel(current, locale)}
+          : null}
         {/* A plain Link: it leaves this page, where InstantLink only swaps
             the feed's filters in place. */}
         <Link href={own ? "/leaderboard" : leaderboardPath(current.place, current.weeks)}>

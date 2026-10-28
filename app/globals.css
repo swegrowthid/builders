@@ -1675,7 +1675,7 @@ form button[aria-busy="true"]::after,
 .ax-weeks i.is-on { background: var(--tone); }
 .ax-weeks i.is-now { outline: 1.5px solid var(--tone); outline-offset: 1px; }
 .ax-weeks i.is-later { opacity: .4; }
-.ax-board-score { color: var(--dx-muted); display: grid; font-size: 12px; justify-items: end; line-height: 1.2; }
+.ax-board-score { align-items: baseline; color: var(--dx-muted); display: flex; font-size: 12px; gap: 6px; line-height: 1.2; white-space: nowrap; }
 .ax-board-score strong { color: var(--tone); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 700; }
 .ax-board-score small { font-size: 11px; }
 .ax-board-empty { color: var(--dx-muted); font-size: 13px; line-height: 1.55; margin: 4px 4px 8px; }
