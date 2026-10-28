@@ -1647,8 +1647,9 @@ form button[aria-busy="true"]::after,
 }
 .ax-board select.ax-pill:hover, .ax-board select.ax-pill:focus-visible { background-color: light-dark(rgba(255, 255, 255, .28), rgba(255, 255, 255, .28)); outline: none; }
 /* A choice that is not the default: the pill turns white, its text purple. */
-.ax-board .ax-pill.is-set, .ax-board select.ax-pill.is-set:hover {
-  background-color: light-dark(#ffffff, #ffffff); color: light-dark(#6639ba, #4c2889);
+.ax-board .ax-pill.is-set, .ax-board select.ax-pill.is-set:hover { background-color: light-dark(#ffffff, #ffffff); color: light-dark(#6639ba, #4c2889); }
+/* The arrow only on a pill that opens a picker; a plain one — "own repos" — just names the feed's choice. */
+.ax-board select.ax-pill.is-set {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236639ba' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
 }
 /* The native picker's own list keeps the page's colours, not white on white. */

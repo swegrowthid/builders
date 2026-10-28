@@ -22,7 +22,14 @@ import type { GitHubRepositoryStats } from "./github";
 import type { RepoActivity } from "./directory";
 import { githubHandle, isOssRelation, mergeOssRows, type OssContribution, type OssMember, type OssRelation, type OssRow } from "./oss";
 import type { Lane } from "./feed";
-import { buildGitHubActivity, SUMMARY_DAYS, type ActivityPerson, type GitHubActivityEntry } from "./github-activity";
+import {
+  buildGitHubActivity,
+  ownPullRequestEntries,
+  SUMMARY_DAYS,
+  type ActivityPerson,
+  type GitHubActivityEntry,
+  type PullRequestEntry,
+} from "./github-activity";
 import {
   buildAuthorQuery,
   buildProfileQuery,
@@ -1864,6 +1871,43 @@ export async function listGitHubActivity(): Promise<GitHubActivityEntry[]> {
     ((summaries.data ?? []) as WithPerson<GitHubCommitSummaryRow>[]).map((row) => ({ ...row, person: activityPerson(row.person) })),
   );
 }
+
+/**
+ * Pull requests to members' own repositories, open or merged, as far back as
+ * the Edge Function keeps them: the "own repos" leaderboard counts the weeks
+ * they were opened in. Only what the board needs is read, a page at a time —
+ * own work comes by the hundred.
+ */
+export async function listOwnPullRequests(): Promise<PullRequestEntry[]> {
+  "use cache";
+  cacheLife("board");
+  cacheTag(tags.activity, tags.people);
+
+  const supabase = getPublicSupabase();
+  if (!supabase) return [];
+
+  const rows: WithPersonColumns<OwnPullRequestColumns>[] = [];
+  for (let page = 0; page < OWN_HISTORY_PAGES; page += 1) {
+    const { data, error } = await supabase
+      .from("github_pull_requests")
+      .select("url, user_id, repo, number, title, state, opened_at, merged_at, person:profiles(id, username, name, github)")
+      .eq("own", true)
+      .order("opened_at", { ascending: false })
+      .range(page * GITHUB_OWN_LIMIT, (page + 1) * GITHUB_OWN_LIMIT - 1);
+    if (error) {
+      console.warn(`[builders] Own pull requests were skipped: ${error.message}`);
+      return [];
+    }
+    rows.push(...((data ?? []) as unknown as WithPersonColumns<OwnPullRequestColumns>[]));
+    if ((data ?? []).length < GITHUB_OWN_LIMIT) break;
+  }
+  return ownPullRequestEntries(rows.map((row) => ({ ...row, person: activityPerson(row.person) })));
+}
+
+/** Pages of GITHUB_OWN_LIMIT read for the own board: plenty for PULL_REQUEST_DAYS. */
+const OWN_HISTORY_PAGES = 5;
+type OwnPullRequestColumns = Pick<GitHubPullRequestRow, "url" | "user_id" | "repo" | "number" | "title" | "state" | "opened_at" | "merged_at">;
+type WithPersonColumns<T> = T & { person: PersonColumns };
 
 /**
  * Every reaction left on /activity, with the reactor's name for the tooltip.

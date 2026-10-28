@@ -6,6 +6,8 @@ import {
   type ActivityPlace,
   type ActivityQuery,
   type ActivityScope,
+  type BoardCount,
+  type BoardOf,
   type BoardSpan,
 } from "./github-activity";
 
@@ -81,13 +83,24 @@ export function activityPath(filters: Partial<ActivityFilters>, page = 1): strin
   return `/${search ? `?${search}` : ""}`;
 }
 
-/** /leaderboard for a place and the weeks counted, so the home board's link keeps both. */
-export function leaderboardPath(place: ActivityPlace, weeks: BoardSpan): string {
+/** What /leaderboard is asked for; each left out of its address at its default. */
+export type LeaderboardChoice = { of: BoardOf; count: BoardCount; weeks: BoardSpan; place: ActivityPlace };
+
+export function leaderboardPath({ of, count, weeks, place }: LeaderboardChoice): string {
   const params = new URLSearchParams();
-  if (place !== "all") params.set("place", place);
+  if (of !== "external") params.set("of", of);
+  if (count !== "opened") params.set("count", count);
   if (weeks !== "season") params.set("weeks", weeks);
+  // Local or global only splits contributions.
+  if (place !== "all" && of === "external") params.set("place", place);
   const search = params.toString();
   return `/leaderboard${search ? `?${search}` : ""}`;
+}
+
+/** The home board's choices, read off the feed's: "Own repos" counts their own, "Merged PRs" only merged ones. */
+export function boardChoice(filters: ActivityFilters): LeaderboardChoice {
+  const of = filters.scope === "own" || filters.kind === "commits" ? "own" : "external";
+  return { of, count: filters.kind === "merged" ? "merged" : "opened", weeks: filters.weeks, place: of === "own" ? "all" : filters.place };
 }
 
 /**

@@ -188,6 +188,23 @@ export function buildGitHubActivity(
   return entries.sort((a, b) => b.at.localeCompare(a.at) || a.key.localeCompare(b.key));
 }
 
+/**
+ * Pull requests to members' own repositories, one entry each, for the own
+ * board's weeks — never the feed, which sums own work up instead.
+ */
+export function ownPullRequestEntries(
+  rows: (Pick<GitHubPullRequestRow, "url" | "user_id" | "repo" | "number" | "title" | "state" | "opened_at" | "merged_at"> & {
+    person: ActivityPerson | null;
+  })[],
+): PullRequestEntry[] {
+  return rows.flatMap((row) => {
+    if (!row.person || (row.state !== "open" && row.state !== "merged")) return [];
+    const at = row.state === "merged" && row.merged_at ? row.merged_at : row.opened_at;
+    const item = { url: row.url, number: row.number, title: row.title, at, openedAt: row.opened_at };
+    return [{ kind: "pull_request" as const, key: row.url, person: row.person, repo: row.repo, url: row.url, state: row.state, pullRequests: [item], at }];
+  });
+}
+
 /** The short name a summary shows: `builders` for zikrulihsan/builders. */
 export function repoName(repo: string): string {
   return repo.slice(repo.indexOf("/") + 1);
@@ -375,6 +392,40 @@ export function isBoardSpan(value: string): value is BoardSpan {
   return (BOARD_SPANS as readonly string[]).includes(value);
 }
 
+/**
+ * Whose repositories a board counts — other people's, or the member's own —
+ * and which pull requests: every one opened (in review or merged), or only
+ * those merged.
+ */
+export const BOARD_OF = ["external", "own"] as const;
+export type BoardOf = (typeof BOARD_OF)[number];
+export const BOARD_COUNTS = ["opened", "merged"] as const;
+export type BoardCount = (typeof BOARD_COUNTS)[number];
+
+export function isBoardOf(value: string): value is BoardOf {
+  return (BOARD_OF as readonly string[]).includes(value);
+}
+
+export function isBoardCount(value: string): value is BoardCount {
+  return (BOARD_COUNTS as readonly string[]).includes(value);
+}
+
+/** The pull requests a board counts: contributions or those to their own repos (see `listOwnPullRequests`), all or merged. */
+export function boardEntries(contributions: GitHubActivityEntry[], own: PullRequestEntry[], of: BoardOf, count: BoardCount): GitHubActivityEntry[] {
+  const chosen: GitHubActivityEntry[] = of === "own" ? own : contributions;
+  return count === "merged" ? chosen.filter((entry) => entry.kind === "pull_request" && entry.state === "merged") : chosen;
+}
+
+/** Every own board the home page can switch to, worked out on the server: own pull requests come by the thousand, the rows by the dozen. */
+export type OwnBoards = Record<`${BoardSpan}:${BoardCount}`, ConsistencyRow[]>;
+
+export function ownBoards(own: PullRequestEntry[], today: string): OwnBoards {
+  const boards = {} as OwnBoards;
+  for (const span of BOARD_SPANS)
+    for (const count of BOARD_COUNTS) boards[`${span}:${count}`] = seasonBoard(boardEntries([], own, "own", count), today, undefined, boardWindow(today, span));
+  return boards;
+}
+
 /** The Mondays of a board's weeks, oldest first, and which one is this week. */
 export type BoardWindow = { weeks: string[]; current: number };
 
@@ -487,35 +538,6 @@ export function nextMilestone(
     if (needed > 0) return needed <= left ? { milestone, needed } : null;
   }
   return null;
-}
-
-/** A row of the own-work board. */
-export type LeaderboardRow = {
-  person: ActivityPerson;
-  /** Pull requests merged into their own repositories. */
-  prs: number;
-  repos: number;
-  /** Commits to their own repositories: the tie-break. */
-  commits?: number;
-};
-
-/**
- * The board for members' own work: pull requests merged into their own
- * repositories over the last SUMMARY_DAYS, the window GitHub's numbers for
- * own work are summed over — so it has no week or month. Pull requests rather
- * than commits, which depend on how somebody happens to split their work;
- * commits only break ties.
- */
-export function ownLeaderboard(entries: GitHubActivityEntry[]): LeaderboardRow[] {
-  return entries
-    .filter((entry): entry is CommitSummaryEntry => entry.kind === "commit_summary" && entry.merged > 0)
-    .map((entry) => ({ person: entry.person, prs: entry.merged, repos: entry.repos.length, commits: entry.commits }))
-    .sort(
-      (a, b) =>
-        b.prs - a.prs ||
-        (b.commits ?? 0) - (a.commits ?? 0) ||
-        (a.person.name || a.person.handle).localeCompare(b.person.name || b.person.handle),
-    );
 }
 
 export type ActivityStats = { people: number; merged: number; open: number; repos: number };

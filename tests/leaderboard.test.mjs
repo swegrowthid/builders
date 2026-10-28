@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MILESTONES, boardWindow, milestoneWeeks, nextMilestone, seasonBoard, seasonLabel, seasonOf, weekStart } from "../app/lib/github-activity.ts";
-import { activityPath, leaderboardPath, readActivityFilters } from "../app/lib/activity-url.ts";
+import { activityPath, boardChoice, leaderboardPath, readActivityFilters } from "../app/lib/activity-url.ts";
 
 const person = (handle, name = handle) => ({ id: handle, username: handle, name, handle });
 const pr = (who, repo, state, ...ats) => ({
@@ -149,8 +149,10 @@ test("the weeks counted travel in the address, the season left out", () => {
   assert.equal(readActivityFilters(new URLSearchParams("weeks=52")).weeks, "season");
   assert.equal(activityPath({ weeks: "8", place: "local" }), "/?place=local&weeks=8");
   assert.equal(activityPath({ weeks: "season" }), "/");
-  assert.equal(leaderboardPath("all", "season"), "/leaderboard");
-  assert.equal(leaderboardPath("global", "4"), "/leaderboard?place=global&weeks=4");
+  const usual = { of: "external", count: "opened", weeks: "season", place: "all" };
+  assert.equal(leaderboardPath(usual), "/leaderboard");
+  assert.equal(leaderboardPath({ ...usual, place: "global", weeks: "4" }), "/leaderboard?weeks=4&place=global");
+  assert.equal(leaderboardPath({ ...usual, of: "own", count: "merged", place: "local" }), "/leaderboard?of=own&count=merged", "no place for own repos");
 });
 
 test("the board's period is no longer in the address", () => {
@@ -158,11 +160,37 @@ test("the board's period is no longer in the address", () => {
   assert.equal("board" in readActivityFilters(new URLSearchParams("board=week")), false);
 });
 
-test("the own-work board counts PRs merged into their own repos, commits only breaking ties", async () => {
-  const { ownLeaderboard } = await import("../app/lib/github-activity.ts");
-  const summary = (who, merged, commits) => ({ kind: "commit_summary", key: `${who.handle}:own`, person: who, commits, merged, repos: [{ repo: `${who.handle}/x`, commits }], since: "2026-09-27", at: "2026-10-27T03:00:00Z" });
-  const rows = ownLeaderboard([summary(person("ana"), 2, 5), summary(person("budi"), 2, 40), summary(person("cici"), 0, 90), summary(person("dodi"), 4, 1)]);
-  assert.deepEqual(rows.map(({ person: who, prs }) => [who.handle, prs]), [["dodi", 4], ["budi", 2], ["ana", 2]], "no merged PR, no row");
+test("the home board follows the feed's choice: own repos, and merged only", () => {
+  const read = (search) => boardChoice(readActivityFilters(new URLSearchParams(search)));
+  assert.deepEqual(read(""), { of: "external", count: "opened", weeks: "season", place: "all" });
+  assert.deepEqual(read("show=merged&place=local&weeks=8"), { of: "external", count: "merged", weeks: "8", place: "local" });
+  assert.deepEqual(read("show=open"), { of: "external", count: "opened", weeks: "season", place: "all" }, "in review alone is not a board");
+  assert.deepEqual(read("scope=own&place=local"), { of: "own", count: "opened", weeks: "season", place: "all" });
+});
+
+test("a board counts contributions or own repos, every PR opened or only the merged", async () => {
+  const { boardEntries, ownBoards, ownPullRequestEntries } = await import("../app/lib/github-activity.ts");
+  const ana = person("ana");
+  const bo = person("bo");
+  const contributions = [pr(ana, "acme/one", "merged", "2026-10-20T03:00:00Z"), pr(bo, "acme/two", "open", "2026-10-27T03:00:00Z")];
+  const row = (who, url, state, opened) => ({ url, user_id: who.id, repo: `${who.handle}/mine`, number: 1, title: "t", state, opened_at: opened, merged_at: state === "merged" ? opened : null, person: who });
+  const own = ownPullRequestEntries([
+    row(bo, "u1", "merged", "2026-10-13T03:00:00Z"),
+    row(bo, "u2", "open", "2026-10-27T03:00:00Z"),
+    row(ana, "u3", "closed", "2026-10-27T03:00:00Z"),
+    { ...row(ana, "u4", "open", "2026-10-27T03:00:00Z"), person: null },
+  ]);
+  assert.equal(own.length, 2, "closed, or nobody shown: left out");
+
+  assert.deepEqual(handles(seasonBoard(boardEntries(contributions, own, "external", "opened"), "2026-10-27")), ["ana", "bo"]);
+  assert.deepEqual(handles(seasonBoard(boardEntries(contributions, own, "external", "merged"), "2026-10-27")), ["ana"]);
+  const [mine] = seasonBoard(boardEntries(contributions, own, "own", "opened"), "2026-10-27");
+  assert.deepEqual([mine.person.handle, mine.filled], ["bo", 2]);
+  assert.equal(seasonBoard(boardEntries(contributions, own, "own", "merged"), "2026-10-27")[0].filled, 1);
+
+  const boards = ownBoards(own, "2026-10-27");
+  assert.deepEqual(Object.keys(boards).sort(), ["4:merged", "4:opened", "8:merged", "8:opened", "season:merged", "season:opened"]);
+  assert.equal(boards["4:opened"][0].weeks.length, 4);
 });
 
 test("local and global split pull requests by the directory's local repos", async () => {

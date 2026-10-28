@@ -1,4 +1,4 @@
-import type { BoardSpan, BoardWindow } from "../lib/github-activity";
+import type { BoardCount, BoardOf, BoardSpan, BoardWindow } from "../lib/github-activity";
 import { tx, type Locale } from "../lib/locale";
 
 /**
@@ -26,7 +26,19 @@ export function WeekDots({ weeks, current, slim = false, locale }: { weeks: bool
  * or on focus for a keyboard or a tap. Plain CSS (.info-tip), so it works
  * before the script does.
  */
-export function BoardInfo({ weeks, span, locale }: { weeks: BoardWindow; span: BoardSpan; locale: Locale }) {
+export function BoardInfo({
+  weeks,
+  span,
+  of = "external",
+  count = "opened",
+  locale,
+}: {
+  weeks: BoardWindow;
+  span: BoardSpan;
+  of?: BoardOf;
+  count?: BoardCount;
+  locale: Locale;
+}) {
   const soFar = weeks.current + 1;
   const total = weeks.weeks.length;
   return (
@@ -37,7 +49,7 @@ export function BoardInfo({ weeks, span, locale }: { weeks: BoardWindow; span: B
       <span className="info-tip-body" role="tooltip">
         {locale === "id" ? (
           <>
-            Satu minggu terisi kalau ada PR yang dibuka ke repo orang lain, direview atau sudah di-merge.
+            {countedRule(of, count, locale)}
             <br />
             <b>x/{soFar}</b>{" "}
             {span === "season"
@@ -52,7 +64,7 @@ export function BoardInfo({ weeks, span, locale }: { weeks: BoardWindow; span: B
           </>
         ) : (
           <>
-            A week counts when a PR was opened to somebody else&apos;s repo, in review or merged.
+            {countedRule(of, count, locale)}
             <br />
             <b>x/{soFar}</b>{" "}
             {span === "season"
@@ -69,6 +81,22 @@ export function BoardInfo({ weeks, span, locale }: { weeks: BoardWindow; span: B
       </span>
     </span>
   );
+}
+
+/** What fills a week, for the board's choices. */
+export function countedRule(of: BoardOf, count: BoardCount, locale: Locale): string {
+  const where = of === "own" ? tx(locale, "repo sendiri", "their own repo") : tx(locale, "repo orang lain", "somebody else's repo");
+  return count === "merged"
+    ? tx(
+        locale,
+        `Satu minggu terisi kalau ada PR ke ${where} yang dibuka minggu itu dan sudah di-merge.`,
+        `A week counts when a PR to ${where} was opened in it and has been merged.`,
+      )
+    : tx(
+        locale,
+        `Satu minggu terisi kalau ada PR yang dibuka ke ${where}, direview atau sudah di-merge.`,
+        `A week counts when a PR was opened to ${where}, in review or merged.`,
+      );
 }
 
 /**

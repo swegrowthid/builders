@@ -8,6 +8,7 @@ import { RelativeTime } from "./relative-time";
 import { ReactionBar } from "./reaction-bar";
 import {
   activityPath,
+  boardChoice,
   leaderboardPath,
   isShowOption,
   readActivityFilters,
@@ -16,6 +17,7 @@ import {
   showOf,
   SHOW_OPTIONS,
   type ActivityFilters,
+  type LeaderboardChoice,
   type ShowOption,
 } from "../lib/activity-url";
 import {
@@ -25,7 +27,6 @@ import {
   inPlace,
   inScope,
   kindCounts,
-  ownLeaderboard,
   placeCounts,
   repoSummaries,
   REPO_ORDERS,
@@ -35,6 +36,7 @@ import {
   scopeCounts,
   ACTIVITY_PLACES,
   BOARD_SPANS,
+  boardEntries,
   SUMMARY_DAYS,
   boardWindow,
   isBoardSpan,
@@ -44,10 +46,10 @@ import {
   type ActivityPlace,
   type BoardSpan,
   type BoardWindow,
+  type OwnBoards,
   type CommitSummaryEntry,
   type ConsistencyRow,
   type GitHubActivityEntry,
-  type LeaderboardRow,
   type PullRequestEntry,
   type RepoOrder,
   type PullRequestItem,
@@ -85,6 +87,7 @@ export function ActivityView({
   unavailable,
   viewerHandle = null,
   localRepos = [],
+  ownBoards,
 }: {
   entries: GitHubActivityEntry[];
   /** Per pull request URL, or per summary key. */
@@ -98,6 +101,8 @@ export function ActivityView({
   viewerHandle?: string | null;
   /** Repositories the directory counts as local (`owner/name`, lower case): the local and global toggle. */
   localRepos?: string[];
+  /** The own-repos boards, from the server (see `ownBoards`). */
+  ownBoards?: OwnBoards;
 }) {
   const searchParams = useSearchParams();
   const fromUrl = readActivityFilters(searchParams);
@@ -148,19 +153,18 @@ export function ActivityView({
   // Everything else narrows within the scope and place showing.
   const scoped = useMemo(() => inPlace(inThisScope, place, local), [inThisScope, place, local]);
   const people = useMemo(() => activityPeople(entries), [entries]);
-  // Members' own work — the Own scope, or summaries — has its own board;
-  // otherwise the board is the season's: who keeps contributing to other
-  // people's repos, in the place showing. It does not follow the kind the feed
-  // shows — a week counts the same whatever the feed is narrowed to.
-  const ownBoard = current.scope === "own" || current.kind === "commits";
+  // The board follows the feed's one choice: contributions, in the place
+  // showing, or — on Own repos — PRs to their own repos; every PR opened, or
+  // on Merged PRs only those merged (see `boardChoice`).
+  const choice = boardChoice(current);
   const season = useMemo(() => seasonOf(today), [today]);
   const boardWeeks = useMemo(() => boardWindow(today, current.weeks), [today, current.weeks]);
-  const board = useMemo<Board>(
+  const board = useMemo(
     () =>
-      ownBoard
-        ? { own: true, rows: ownLeaderboard(entries) }
-        : { own: false, rows: seasonBoard(inPlace(entries, place, local), today, undefined, boardWeeks) },
-    [entries, ownBoard, place, local, today, boardWeeks],
+      choice.of === "own"
+        ? (ownBoards?.[`${choice.weeks}:${choice.count}`] ?? [])
+        : seasonBoard(inPlace(boardEntries(entries, [], "external", choice.count), place, local), today, undefined, boardWeeks),
+    [entries, ownBoards, choice.of, choice.count, choice.weeks, place, local, today, boardWeeks],
   );
   const matched = useMemo(
     () => queryActivity(scoped, current),
@@ -204,7 +208,8 @@ export function ActivityView({
             repos after it. */}
         <div className="ax-side">
           <Leaderboard
-            board={board}
+            rows={board}
+            choice={choice}
             season={season}
             boardWeeks={boardWeeks}
             current={current}
@@ -452,23 +457,21 @@ function RepoList({ entries, current, locale }: { entries: GitHubActivityEntry[]
   );
 }
 
-/** How many rows the board shows before "See all": fewer on a phone, where it sits above the feed. */
-const BOARD_SHOWN = 10;
-const BOARD_SHOWN_PHONE = 5;
+/** How many rows the board shows here; the whole of it is on /leaderboard. */
+const BOARD_SHOWN = 5;
 const MEDALS = ["🥇", "🥈", "🥉"];
 
-/** Either board: who keeps contributing, or members' own work. */
-type Board = { own: false; rows: ConsistencyRow[] } | { own: true; rows: LeaderboardRow[] };
-
 /**
- * The left column: the season's leaders — weeks with a PR so far, and the
- * streak (see `seasonBoard`), the top few with the whole board a link away on
- * /leaderboard — or, on the Own scope, members' own work. Each row also
- * narrows the feed beside it to that person. A signed-in member outside the
- * shown rows still sees their own.
+ * The left column: who keeps at it — weeks with a PR, and the streak (see
+ * `seasonBoard`) — over the season or the last few weeks, the top few with
+ * the whole board a link away on /leaderboard. What it counts follows the
+ * feed's choice (see `boardChoice`). Each row also narrows the feed beside it
+ * to that person. A signed-in member outside the shown rows still sees their
+ * own.
  */
 function Leaderboard({
-  board,
+  rows: all,
+  choice,
   season,
   boardWeeks,
   current,
@@ -477,7 +480,8 @@ function Leaderboard({
   locale,
   navigate,
 }: {
-  board: Board;
+  rows: ConsistencyRow[];
+  choice: LeaderboardChoice;
   season: Season;
   /** The weeks the board counts: the season's, or the last four or eight. */
   boardWeeks: BoardWindow;
@@ -489,12 +493,9 @@ function Leaderboard({
   viewerHandle: string | null;
   locale: Locale;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const { own } = board;
-  // The season's board is a summary here; the whole of it is on /leaderboard.
-  const rows = own ? board.rows : board.rows.slice(0, BOARD_SHOWN_PHONE);
+  const rows = all.slice(0, BOARD_SHOWN);
   const viewerKey = viewerHandle?.toLowerCase() ?? "";
-  const viewerRank = viewerKey ? board.rows.findIndex(({ person }) => person.handle.toLowerCase() === viewerKey) : -1;
+  const viewerRank = viewerKey ? all.findIndex(({ person }) => person.handle.toLowerCase() === viewerKey) : -1;
   const placeLabels: Record<ActivityPlace, string> = {
     all: tx(locale, "semua repo", "all repos"),
     local: tx(locale, "repo lokal", "local repos"),
@@ -505,105 +506,98 @@ function Leaderboard({
     "8": tx(locale, "8 minggu terakhir", "last 8 weeks"),
     season: tx(locale, `musim ${seasonLabel(season, "id")}`, `season ${seasonLabel(season, "en")}`),
   };
-  const score = (index: number) => {
-    if (board.own) {
-      const { prs, repos } = board.rows[index];
-      return { main: `${prs} PR`, side: tx(locale, `${repos} repo`, `${repos} ${repos === 1 ? "repo" : "repos"}`) };
-    }
-    const { filled, streak } = board.rows[index];
-    return { main: `${filled}/${boardWeeks.current + 1}`, side: streak > 0 ? `🔥 ${streak}` : "" };
-  };
+  const score = ({ filled }: ConsistencyRow) => `${filled}/${boardWeeks.current + 1}`;
+  const where = choice.of === "own" ? tx(locale, "repo sendiri", "own repos") : tx(locale, "repo orang lain", "other people's repos");
 
   return (
     <aside className="ax-board tone-done" aria-labelledby="board-title">
       <div className="ax-board-head">
         <h2 id="board-title">
-          <span aria-hidden="true">🏆</span> {own ? "Leaderboard" : "Weeks of contribution"}
-          {own ? null : <BoardInfo weeks={boardWeeks} span={current.weeks} locale={locale} />}
+          <span aria-hidden="true">🏆</span> Weeks of contribution
+          <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
         </h2>
         {/* The board's choices read as one line under its name — "season
-            Oct–Dec 2026 · all repos" — the place a pill that opens a native picker.
-            A real GET form, so it works before the script does. Own repos
-            have no choice: their numbers only come as the last SUMMARY_DAYS. */}
-        {own ? (
-          <p className="ax-board-pills">
-            <span className="ax-pill">{tx(locale, `${SUMMARY_DAYS} hari terakhir`, `last ${SUMMARY_DAYS} days`)}</span>
-            <span aria-hidden="true">·</span>
-            <span className="ax-pill">{tx(locale, "repo sendiri", "own repos")}</span>
-          </p>
-        ) : (
-          <form className="ax-board-pills" action="/">
-            {current.kind !== "all" ? <input type="hidden" name="show" value={current.kind} /> : null}
-            {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
-            {current.repo ? <input type="hidden" name="repo" value={current.repo} /> : null}
-            {current.q ? <input type="hidden" name="q" value={current.q} /> : null}
-            <label>
-              <span className="sr-only">{tx(locale, "Minggu yang dihitung", "Weeks counted")}</span>
-              <select
-                name="weeks"
-                className={`ax-pill ${current.weeks !== "season" ? "is-set" : ""}`}
-                value={current.weeks}
-                onChange={(event) => {
-                  const weeks = event.target.value;
-                  navigate(activityPath({ ...current, weeks: isBoardSpan(weeks) ? weeks : "season" }));
-                }}
-              >
-                {BOARD_SPANS.map((span) => (
-                  <option key={span} value={span}>
-                    {spanLabels[span]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {places ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <label>
-                  <span className="sr-only">{tx(locale, "Repo lokal atau global", "Local or global repos")}</span>
-                  <select
-                    name="place"
-                    className={`ax-pill ${current.place !== "all" ? "is-set" : ""}`}
-                    value={current.place}
-                    onChange={(event) =>
-                      navigate(activityPath({ ...current, place: ACTIVITY_PLACES.find((place) => place === event.target.value) ?? "all" }))
-                    }
-                  >
-                    {ACTIVITY_PLACES.map((place) => (
-                      <option key={place} value={place}>
-                        {placeLabels[place]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            ) : null}
-            <noscript>
-              <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
-            </noscript>
-          </form>
-        )}
+            Oct–Dec 2026 · all repos" — each a pill that opens a native picker;
+            what it counts follows the feed's "show" choice, named here when it
+            is not the usual. A real GET form, so it works before the script does. */}
+        <form className="ax-board-pills" action="/">
+          {current.scope !== "external" ? <input type="hidden" name="scope" value={current.scope} /> : null}
+          {current.kind !== "all" ? <input type="hidden" name="show" value={current.kind} /> : null}
+          {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
+          {current.repo ? <input type="hidden" name="repo" value={current.repo} /> : null}
+          {current.q ? <input type="hidden" name="q" value={current.q} /> : null}
+          <label>
+            <span className="sr-only">{tx(locale, "Minggu yang dihitung", "Weeks counted")}</span>
+            <select
+              name="weeks"
+              className={`ax-pill ${current.weeks !== "season" ? "is-set" : ""}`}
+              value={current.weeks}
+              onChange={(event) => {
+                const weeks = event.target.value;
+                navigate(activityPath({ ...current, weeks: isBoardSpan(weeks) ? weeks : "season" }));
+              }}
+            >
+              {BOARD_SPANS.map((span) => (
+                <option key={span} value={span}>
+                  {spanLabels[span]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {places && choice.of === "external" ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <label>
+                <span className="sr-only">{tx(locale, "Repo lokal atau global", "Local or global repos")}</span>
+                <select
+                  name="place"
+                  className={`ax-pill ${current.place !== "all" ? "is-set" : ""}`}
+                  value={current.place}
+                  onChange={(event) =>
+                    navigate(activityPath({ ...current, place: ACTIVITY_PLACES.find((place) => place === event.target.value) ?? "all" }))
+                  }
+                >
+                  {ACTIVITY_PLACES.map((place) => (
+                    <option key={place} value={place}>
+                      {placeLabels[place]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          ) : null}
+          {choice.of === "own" ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="ax-pill is-set">{tx(locale, "repo sendiri", "own repos")}</span>
+            </>
+          ) : null}
+          {choice.count === "merged" ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="ax-pill is-set">{tx(locale, "merged saja", "merged only")}</span>
+            </>
+          ) : null}
+          <noscript>
+            <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
+          </noscript>
+        </form>
       </div>
 
       {rows.length === 0 ? (
         <p className="ax-board-empty">
-          {own
-            ? tx(locale, `Belum ada PR merged ke repo sendiri dalam ${SUMMARY_DAYS} hari terakhir.`, `No PRs merged into members' own repos in the last ${SUMMARY_DAYS} days.`)
-            : tx(
-                locale,
-                current.weeks === "season"
-                  ? "Belum ada PR musim ini. Satu PR minggu ini sudah cukup untuk mulai!"
-                  : `Belum ada PR dalam ${current.weeks} minggu terakhir. Satu PR minggu ini sudah cukup untuk mulai!`,
-                current.weeks === "season"
-                  ? "No PRs this season yet. One PR this week is enough to start!"
-                  : `No PRs in the last ${current.weeks} weeks. One PR this week is enough to start!`,
-              )}
+          {tx(
+            locale,
+            `Belum ada PR ke ${where} ${current.weeks === "season" ? "musim ini" : `dalam ${current.weeks} minggu terakhir`}. Satu PR minggu ini sudah cukup untuk mulai!`,
+            `No PRs to ${where} ${current.weeks === "season" ? "this season" : `in the last ${current.weeks} weeks`} yet. One PR this week is enough to start!`,
+          )}
         </p>
       ) : (
-        <ol className={`ax-board-list ${expanded ? "is-expanded" : ""}`}>
-          {rows.map(({ person }, index) => {
+        <ol className="ax-board-list">
+          {rows.map((row, index) => {
+            const { person, weeks, streak } = row;
             const on = person.handle.toLowerCase() === current.member.toLowerCase();
             const mine = person.handle.toLowerCase() === viewerKey;
-            const { main, side } = score(index);
             return (
               <li key={person.id} className={`${on ? "is-active" : ""} ${mine ? "is-mine" : ""}`}>
                 <InstantLink
@@ -617,11 +611,11 @@ function Leaderboard({
                   <Avatar handle={person.handle} size={24} />
                   <span className="ax-board-who">
                     <span className="ax-board-name">{person.name || `@${person.handle}`}</span>
-                    {board.own ? null : <WeekDots weeks={board.rows[index].weeks} current={boardWeeks.current} slim locale={locale} />}
+                    <WeekDots weeks={weeks} current={boardWeeks.current} slim locale={locale} />
                   </span>
                   <span className="ax-board-score">
-                    <strong>{main}</strong>
-                    {side ? <small>{side}</small> : null}
+                    <strong>{score(row)}</strong>
+                    {streak > 0 ? <small>🔥 {streak}</small> : null}
                   </span>
                 </InstantLink>
               </li>
@@ -630,42 +624,23 @@ function Leaderboard({
         </ol>
       )}
 
-      {own ? null : (
-        <ThisWeek
-          className="ax-board-week"
-          names={(board.rows as ConsistencyRow[]).filter(({ weeks }) => weeks[boardWeeks.current]).map(({ person }) => person.name || `@${person.handle}`)}
-          locale={locale}
-        />
-      )}
+      <ThisWeek
+        className="ax-board-week"
+        names={all.filter(({ weeks }) => weeks[boardWeeks.current]).map(({ person }) => person.name || `@${person.handle}`)}
+        locale={locale}
+      />
 
-      {viewerRank >= BOARD_SHOWN_PHONE && (!own || !expanded) ? (
-        <p className={`ax-board-you ${own && viewerRank < BOARD_SHOWN ? "is-phone-only" : ""}`}>
-          {tx(locale, "Kamu", "You")}: <strong>#{viewerRank + 1}</strong> · {score(viewerRank).main}
+      {viewerRank >= BOARD_SHOWN ? (
+        <p className="ax-board-you">
+          {tx(locale, "Kamu", "You")}: <strong>#{viewerRank + 1}</strong> · {score(all[viewerRank])}
         </p>
       ) : null}
 
-      {own && rows.length > BOARD_SHOWN_PHONE ? (
-        <button
-          type="button"
-          className={`ax-board-toggle ${rows.length <= BOARD_SHOWN ? "is-phone-only" : ""}`}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((open) => !open)}
-        >
-          {expanded ? tx(locale, "Tampilkan lebih sedikit", "Show fewer") : tx(locale, `Lihat semua (${rows.length})`, `See all (${rows.length})`)}
-        </button>
-      ) : null}
-
       <p className="ax-board-foot">
-        {own
-          ? tx(locale, "Dihitung dari PR merged ke repo sendiri; seri dipecah jumlah commit. ", "Counts PRs merged into their own repos; commits break ties. ")
-          : null}
         {/* A plain Link: it leaves this page, where InstantLink only swaps
             the feed's filters in place. */}
-        <Link href={own ? "/leaderboard" : leaderboardPath(current.place, current.weeks)}>
-          {own
-            ? tx(locale, "Leaderboard musim ini", "This season's leaderboard")
-            : tx(locale, `Leaderboard lengkap (${board.rows.length})`, `Full leaderboard (${board.rows.length})`)}{" "}
-          <span aria-hidden="true">→</span>
+        <Link href={leaderboardPath(choice)}>
+          {tx(locale, `Leaderboard lengkap (${all.length})`, `Full leaderboard (${all.length})`)} <span aria-hidden="true">→</span>
         </Link>
       </p>
     </aside>
