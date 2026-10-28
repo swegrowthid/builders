@@ -2505,6 +2505,12 @@ footer .theme-row[aria-checked="true"] .theme-switch::after { transform: transla
 }
 .ax-event > .pfeed-logo img { border-radius: 8px; height: 32px; width: 32px; }
 .ax-event > .pfeed-logo:not(:has(img)) { background: var(--dx-soft); }
+/* The kind chips: outlined, the one showing filled in. */
+.pfeed-shows a { background: none; border: 1px solid var(--dx-line); color: var(--dx-text); font-weight: 500; padding: 4px 10px; }
+.pfeed-shows a:hover { background: var(--dx-soft); }
+.pfeed-shows a span { font-size: 12px; font-variant-numeric: tabular-nums; }
+.pfeed-shows a[aria-current="page"] { background: var(--dx-ink); border-color: var(--dx-ink); color: light-dark(#ffffff, #09090b); font-weight: 600; }
+.pfeed-shows a[aria-current="page"] span { color: inherit; opacity: .7; }
 .pfeed-lines { display: grid; gap: 3px; list-style: none; margin: 4px 0 0; padding: 0; }
 .pfeed-line { color: var(--dx-text); font-size: 13.5px; line-height: 1.5; overflow-wrap: anywhere; padding-left: 14px; position: relative; }
 .pfeed-line::before { background: var(--dx-faint); border-radius: 50%; content: ""; height: 6px; left: 0; position: absolute; top: .6em; width: 6px; }

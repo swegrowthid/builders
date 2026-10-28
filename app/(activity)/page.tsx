@@ -6,7 +6,7 @@ import { SiteFooter, SiteHeader } from "../components/shell";
 import { ActivityBanner } from "../components/activity-banner";
 import { ActivityView } from "../components/activity-view";
 import { ProductFeedView, type FeedProductLook } from "../components/product-feed-view";
-import { feedStats, groupProductFeed } from "../lib/product-feed";
+import { dropCutOffDay, feedStats, groupProductFeed, productFeedPath, readProductFeedQuery } from "../lib/product-feed";
 import { Skeleton } from "../components/skeleton";
 import { shareCard } from "../content";
 import { activityPath, readActivityFilters, readActivityPage } from "../lib/activity-url";
@@ -44,6 +44,21 @@ export async function generateMetadata(): Promise<Metadata> {
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
+ * How far back the builders feed reads: its cards are paged in the browser,
+ * so this is the ceiling on how old a page can go, not the page size.
+ */
+const PRODUCT_FEED_EVENTS = 1000;
+
+/** The address the header returns to: each site's feed has its own filters. */
+function returnPath(values: Record<string, string | string[] | undefined>): string {
+  if (!isOss) {
+    const { show, page } = readProductFeedQuery(values);
+    return productFeedPath(show, page);
+  }
+  return activityPath(readActivityFilters(values), readActivityPage(values));
+}
+
+/**
  * On the builders site, members' products instead — see ProductActivityBody.
  *
  * What members have been doing in open source, read from GitHub, as a
@@ -61,7 +76,7 @@ export default async function ActivityPage({ searchParams }: { searchParams?: Se
 
   return (
     <>
-      <SiteHeader returnTo={query.then((values) => activityPath(readActivityFilters(values), readActivityPage(values)))} active="activity" />
+      <SiteHeader returnTo={query.then(returnPath)} active="activity" />
 
       <main id="main-content" className="dx-page">
         <Suspense fallback={null}>
@@ -70,7 +85,7 @@ export default async function ActivityPage({ searchParams }: { searchParams?: Se
 
         <Suspense fallback={<ActivitySkeleton locale={locale} />}>
           {/* Pull requests on the open source site, products on builders. */}
-          {isOss ? <ActivityBody query={query} locale={locale} /> : <ProductActivityBody locale={locale} />}
+          {isOss ? <ActivityBody query={query} locale={locale} /> : <ProductActivityBody query={query} locale={locale} />}
         </Suspense>
       </main>
 
@@ -215,11 +230,15 @@ async function ActivityBody({ query, locale }: { query: SearchParams; locale: Lo
 /**
  * The builders site's feed: members' products, from the trail `events` keeps
  * (see app/lib/product-feed.ts), one card per product per day with reactions.
- * Read whole and grouped on the server; there are no filters to apply.
+ * Read whole and grouped on the server; the kind and the page are chosen in
+ * the browser.
  */
-async function ProductActivityBody({ locale }: { locale: Locale }) {
+async function ProductActivityBody({ query, locale }: { query: SearchParams; locale: Locale }) {
+  // As on the PR feed: waiting for the request keeps the page asked for in the
+  // server's first answer.
+  await query;
   const [events, projects, reactionRows, viewer] = await Promise.all([
-    readPublicly("product feed", () => listProductFeed(), []),
+    readPublicly("product feed", () => listProductFeed(PRODUCT_FEED_EVENTS), []),
     readPublicly("products for the feed's logos", () => listProjects({ lane: "active" }), []),
     readPublicly("activity reactions", listActivityReactions, []),
     currentViewer(),
@@ -250,7 +269,7 @@ async function ProductActivityBody({ locale }: { locale: Locale }) {
 
       <div className="pfeed">
         <ProductFeedView
-          entries={groupProductFeed(events.value).slice(0, 60)}
+          entries={dropCutOffDay(groupProductFeed(events.value), events.value.length, PRODUCT_FEED_EVENTS)}
           looks={looks}
           reactions={summarizeReactions(reactionRows.value, viewer?.id ?? null)}
           viewerName={viewer ? viewer.name || viewer.username : null}
