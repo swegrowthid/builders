@@ -88,11 +88,11 @@ const nextConfig: NextConfig = {
     // revalidatePath in app/actions.ts), so it only ever repeats a page
     // nothing has changed since.
     staleTimes: { dynamic: 120 },
-    // The stylesheet arrives inside the HTML instead of as a second request
-    // the browser must wait for before it paints anything. On a first visit
-    // over a high-latency mobile connection that request was ~0.4 s of blank
-    // screen; the cost is ~30 KB (compressed) more HTML on each page load.
-    inlineCss: true,
+    // No `inlineCss`: with it on, the ~160 KB stylesheet was written into the
+    // HTML once as a <style> and again, three times, in the React payload —
+    // 737 KB of HTML on the home page against 80 KB without it. Mobile
+    // Lighthouse (simulated slow 4G): 91 -> 96, FCP 1.3 s -> 1.1 s, TBT
+    // 130 ms -> 45 ms. The separate CSS request is cached after the first visit.
     // Turbopack's filesystem cache (on by default since 16.3) kept serving a
     // stale globals.css: Netlify restores `.next/cache` between deploys, and a
     // build shipped new HTML with an old stylesheet — the leaderboard and
