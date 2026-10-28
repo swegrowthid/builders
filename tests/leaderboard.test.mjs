@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { consistencyBoard, weekStart } from "../app/lib/github-activity.ts";
+import { MILESTONES, milestoneWeeks, nextMilestone, seasonBoard, seasonLabel, seasonOf, weekStart } from "../app/lib/github-activity.ts";
 import { activityPath, readActivityFilters } from "../app/lib/activity-url.ts";
 
 const person = (handle, name = handle) => ({ id: handle, username: handle, name, handle });
@@ -26,51 +26,68 @@ test("a week starts on Monday", () => {
   assert.equal(weekStart("2026-11-01"), "2026-10-26", "a Sunday's week can begin last month");
 });
 
-test("the board counts weeks with a PR opened to other people's repos, not how many PRs", () => {
+test("a season is a quarter: the weeks whose Monday falls in it", () => {
+  const season = seasonOf("2026-10-27");
+  assert.equal(season.quarter, 4);
+  assert.equal(season.weeks.length, 13);
+  assert.equal(season.weeks[0], "2026-10-05", "1 Oct is a Thursday: its week is the last season's");
+  assert.equal(season.weeks.at(-1), "2026-12-28");
+  assert.equal(season.current, 3);
+  assert.equal(seasonLabel(season, "id"), "Okt–Des 2026");
+  assert.equal(seasonOf("2026-10-02").quarter, 3, "the week of 28 Sep is still Jul–Sep");
+  assert.equal(seasonOf("2027-01-03").year, 2026, "a Sunday in January ends December's week");
+  assert.equal(seasonOf("2024-07-10").weeks.length, 14, "a quarter that starts and ends on a Monday");
+});
+
+test("the board counts weeks with a PR opened to other people's repos this season, not how many PRs", () => {
   const ana = person("ana", "Ana");
   const budi = person("budi", "Budi");
   const cici = person("cici", "Cici");
-  // Today is Tuesday 27 Oct; this week began on the 26th.
+  // Today is Tuesday 27 Oct, the season's fourth week.
   const entries = [
     // Ana: one PR in each of the last three weeks.
     pr(ana, "acme/one", "merged", "2026-10-26T03:00:00Z", "2026-10-20T03:00:00Z", "2026-10-13T03:00:00Z"),
     // Budi: five PRs, all this week.
     pr(budi, "acme/one", "merged", "2026-10-26T03:00:00Z", "2026-10-26T04:00:00Z", "2026-10-27T01:00:00Z", "2026-10-27T02:00:00Z", "2026-10-27T03:00:00Z"),
-    // In review counts, the week it was opened; their own work never does.
+    // In review counts too, the week it was opened; their own work never does.
     pr(cici, "acme/three", "open", "2026-10-27T03:00:00Z"),
     { kind: "commit_summary", key: "cici:own", person: cici, commits: 40, merged: 9, repos: [], since: "2026-09-27", at: "2026-10-27T03:00:00Z" },
   ];
-  const board = consistencyBoard(entries, "2026-10-27");
+  const board = seasonBoard(entries, "2026-10-27");
   assert.deepEqual(board.map(({ person: who, filled, streak, prs }) => [who.handle, filled, streak, prs]), [["ana", 3, 3, 3], ["budi", 1, 1, 5], ["cici", 1, 1, 1]]);
-
-  // Split by kind, as the feed's filter asks: merged only, or in review only.
-  assert.deepEqual(handles(consistencyBoard(entries, "2026-10-27", ["merged"])), ["ana", "budi"]);
-  assert.deepEqual(handles(consistencyBoard(entries, "2026-10-27", ["open"])), ["cici"]);
-  assert.equal(board[0].weeks.length, 12);
-  assert.deepEqual(board[0].weeks.slice(-4), [false, true, true, true], "oldest first, this week last");
+  assert.equal(board[0].weeks.length, 13);
+  assert.deepEqual(board[0].weeks.slice(0, 5), [false, true, true, true, false], "oldest first; weeks to come are empty");
 });
 
 test("a merged PR counts for the week it was opened, not the week it landed", () => {
   const ana = person("ana");
   // Opened on 12 Oct, merged on the 27th: the week of the 12th is filled.
-  const [row] = consistencyBoard([pr(ana, "acme/one", "merged", ["2026-10-12T03:00:00Z", "2026-10-27T03:00:00Z"])], "2026-10-27");
-  assert.deepEqual(row.weeks.slice(-3), [true, false, false]);
-  // Older than twelve weeks: off the board.
-  assert.deepEqual(consistencyBoard([pr(ana, "acme/one", "merged", ["2026-07-01T03:00:00Z", "2026-10-27T03:00:00Z"])], "2026-10-27"), []);
+  const [row] = seasonBoard([pr(ana, "acme/one", "merged", ["2026-10-12T03:00:00Z", "2026-10-27T03:00:00Z"])], "2026-10-27");
+  assert.deepEqual(row.weeks.slice(0, 4), [false, true, false, false]);
+});
+
+test("last season's weeks are off the board, but a streak runs across", () => {
+  const ana = person("ana");
+  // 30 Sep is the week of 28 Sep: last season.
+  assert.deepEqual(seasonBoard([pr(ana, "acme/one", "merged", "2026-09-30T03:00:00Z")], "2026-10-27"), []);
+  const [row] = seasonBoard([pr(ana, "acme/one", "merged", "2026-09-30T03:00:00Z", "2026-10-06T03:00:00Z", "2026-10-13T03:00:00Z", "2026-10-20T03:00:00Z")], "2026-10-27");
+  assert.equal(row.filled, 3);
+  assert.equal(row.streak, 4);
+  assert.equal(row.prs, 3, "PRs and repos are the season's");
 });
 
 test("a streak waits for this week to end before it breaks", () => {
   const ana = person("ana");
   const lastTwo = pr(ana, "acme/one", "merged", "2026-10-19T03:00:00Z", "2026-10-12T03:00:00Z");
-  assert.equal(consistencyBoard([lastTwo], "2026-10-27")[0].streak, 2, "nothing yet this week: still 2");
+  assert.equal(seasonBoard([lastTwo], "2026-10-27")[0].streak, 2, "nothing yet this week: still 2");
   const gap = pr(ana, "acme/one", "merged", "2026-10-12T03:00:00Z", "2026-10-05T03:00:00Z");
-  assert.equal(consistencyBoard([gap], "2026-10-27")[0].streak, 0, "an empty last week breaks it");
+  assert.equal(seasonBoard([gap], "2026-10-27")[0].streak, 0, "an empty last week breaks it");
 });
 
 test("weeks turn over on Monday in WIB", () => {
   const ana = person("ana");
   // Sunday 25 Oct 18:00 UTC is Monday 26 Oct 01:00 in Jakarta: this week.
-  assert.deepEqual(consistencyBoard([pr(ana, "acme/one", "merged", "2026-10-25T18:00:00Z")], "2026-10-27")[0].weeks.slice(-2), [false, true]);
+  assert.deepEqual(seasonBoard([pr(ana, "acme/one", "merged", "2026-10-25T18:00:00Z")], "2026-10-27")[0].weeks.slice(2, 4), [false, true]);
 });
 
 test("ties go to the longer streak, then more repos, then more PRs", () => {
@@ -84,7 +101,24 @@ test("ties go to the longer streak, then more repos, then more PRs", () => {
     pr(cici, "acme/one", "merged", "2026-10-26T03:00:00Z"),
     pr(cici, "acme/two", "merged", "2026-10-19T03:00:00Z"),
   ];
-  assert.deepEqual(handles(consistencyBoard(entries, "2026-10-27")), ["cici", "budi", "ana"]);
+  assert.deepEqual(handles(seasonBoard(entries, "2026-10-27")), ["cici", "budi", "ana"]);
+});
+
+test("the next milestone is the first not yet reached, while the season can still get there", () => {
+  const season = seasonOf("2026-10-27");
+  const next = (filled, done, at = season) => {
+    const found = nextMilestone(filled, done, at);
+    return found && [found.milestone.icon, found.needed];
+  };
+  assert.deepEqual(next(2, false), ["🌱", 2]);
+  assert.deepEqual(next(4, true), ["🔥", 4]);
+  assert.deepEqual(next(8, false), ["🏆", 5], "every week of the season");
+  assert.equal(milestoneWeeks(MILESTONES[2], season), 13);
+  // 22 Dec: this week and one more are left.
+  const late = seasonOf("2026-12-22");
+  assert.deepEqual(next(3, false, late), ["🌱", 1]);
+  assert.equal(next(8, false, late), null, "a whole season is out of reach");
+  assert.equal(next(13, true, late), null, "all reached");
 });
 
 test("the board's period is no longer in the address", () => {
@@ -111,7 +145,7 @@ test("local and global split pull requests by the directory's local repos", asyn
   assert.deepEqual(placeCounts(entries, local), { all: 2, local: 1, global: 1 });
   assert.equal(inPlace(entries, "all", local).length, 3);
   assert.deepEqual(inPlace(entries, "local", local).map((entry) => entry.repo), ["kawan/krs"]);
-  assert.equal(consistencyBoard(inPlace(entries, "global", local), "2026-10-27")[0].prs, 2);
+  assert.equal(seasonBoard(inPlace(entries, "global", local), "2026-10-27")[0].prs, 2);
   assert.equal(activityPath({ place: "local" }), "/?place=local");
   assert.equal(readActivityFilters(new URLSearchParams("place=moon")).place, "all");
 });

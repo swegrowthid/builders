@@ -316,16 +316,59 @@ export function weekStart(day: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** How many weeks the board looks back over, this one included. */
-export const CONSISTENCY_WEEKS = 12;
+/** The Monday seven days after `week`, or before it for a negative `by`. */
+function addWeeks(week: string, by: number): string {
+  const date = new Date(`${week}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 7 * by);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * A season of the leaderboard: a calendar quarter, as the weeks whose Monday
+ * falls in it — 13, now and then 14. Everybody starts it at zero, so a new
+ * member is not twelve weeks behind, and a score only grows while it runs: no
+ * week ever drops out of it the way one drops out of a rolling window.
+ */
+export type Season = {
+  year: number;
+  quarter: 1 | 2 | 3 | 4;
+  /** The Mondays of its weeks, oldest first. */
+  weeks: string[];
+  /** Which of them is this week. */
+  current: number;
+};
+
+/** The season this week belongs to: the quarter its Monday is in. */
+export function seasonOf(today: string): Season {
+  const thisWeek = weekStart(today);
+  const year = Number(thisWeek.slice(0, 4));
+  const quarter = (Math.floor((Number(thisWeek.slice(5, 7)) - 1) / 3) + 1) as Season["quarter"];
+  const first = `${year}-${String(quarter * 3 - 2).padStart(2, "0")}-01`;
+  const next = quarter === 4 ? `${year + 1}-01-01` : `${year}-${String(quarter * 3 + 1).padStart(2, "0")}-01`;
+  // The first Monday on or after the quarter's first day.
+  let week = weekStart(first);
+  if (week < first) week = addWeeks(week, 1);
+  const weeks: string[] = [];
+  for (; week < next; week = addWeeks(week, 1)) weeks.push(week);
+  return { year, quarter, weeks, current: weeks.indexOf(thisWeek) };
+}
+
+/** "Okt–Des 2026": the season's months. */
+export function seasonLabel(season: Season, locale: "id" | "en"): string {
+  const months =
+    locale === "id"
+      ? ["Jan–Mar", "Apr–Jun", "Jul–Sep", "Okt–Des"]
+      : ["Jan–Mar", "Apr–Jun", "Jul–Sep", "Oct–Dec"];
+  return `${months[season.quarter - 1]} ${season.year}`;
+}
 
 export type ConsistencyRow = {
   person: ActivityPerson;
-  /** Each of the last CONSISTENCY_WEEKS weeks, oldest first: whether a pull request was opened in it. */
+  /** Each week of the season, oldest first: whether a pull request was opened in it. Weeks still to come are false. */
   weeks: boolean[];
   /** How many of them did. */
   filled: number;
-  /** Weeks in a row up to this one — or up to last week, while this one is still empty. */
+  /** Weeks in a row up to this one — or up to last week, while this one is still empty. It runs across seasons. */
   streak: number;
   repos: number;
   prs: number;
@@ -333,55 +376,48 @@ export type ConsistencyRow = {
 
 /**
  * The leaderboard: who keeps contributing, not who sent the most. A week
- * counts when a pull request to somebody else's repository was opened in it —
- * in review or merged by default, or only one of the two when the feed's kind
- * filter asks. One closed without merging never counts: the Edge Function
- * drops it. Weeks run Monday to Sunday in WIB, where the members live.
+ * counts when a pull request to somebody else's repository was opened in it,
+ * in review or merged. One closed without merging never counts: the Edge
+ * Function drops it. Weeks run Monday to Sunday in WIB, where the members
+ * live, and the board is the season's (see `Season`).
  *
  * Ranked by weeks filled, then the streak, then repos reached, then pull
  * requests. Volume only breaks ties: splitting one change into five pull
  * requests earns nothing (#186).
  */
-export function consistencyBoard(
-  entries: GitHubActivityEntry[],
-  today: string,
-  states: readonly PullRequestEntry["state"][] = ["merged", "open"],
-  timeZone = "Asia/Jakarta",
-): ConsistencyRow[] {
-  const thisWeek = weekStart(today);
-  const weekStarts = Array.from({ length: CONSISTENCY_WEEKS }, (_, index) => {
-    const date = new Date(`${thisWeek}T00:00:00Z`);
-    date.setUTCDate(date.getUTCDate() - 7 * (CONSISTENCY_WEEKS - 1 - index));
-    return date.toISOString().slice(0, 10);
-  });
-  const slot = new Map(weekStarts.map((week, index) => [week, index]));
+export function seasonBoard(entries: GitHubActivityEntry[], today: string, timeZone = "Asia/Jakarta"): ConsistencyRow[] {
+  const season = seasonOf(today);
+  const slot = new Map(season.weeks.map((week, index) => [week, index]));
 
-  const byHandle = new Map<string, { person: ActivityPerson; weeks: boolean[]; repos: Set<string>; prs: number }>();
+  const byHandle = new Map<string, { person: ActivityPerson; active: Set<string>; repos: Set<string>; prs: number }>();
   for (const entry of entries) {
-    if (entry.kind !== "pull_request" || !states.includes(entry.state)) continue;
+    if (entry.kind !== "pull_request") continue;
     for (const pullRequest of entry.pullRequests) {
       const opened = dayKey(pullRequest.openedAt, timeZone);
-      const index = opened > today ? undefined : slot.get(weekStart(opened));
-      if (index === undefined) continue;
+      if (opened > today) continue;
       const key = entry.person.handle.toLowerCase();
-      const row = byHandle.get(key) ?? { person: entry.person, weeks: Array<boolean>(CONSISTENCY_WEEKS).fill(false), repos: new Set<string>(), prs: 0 };
-      row.weeks[index] = true;
-      row.repos.add(entry.repo);
-      row.prs += 1;
+      const row = byHandle.get(key) ?? { person: entry.person, active: new Set<string>(), repos: new Set<string>(), prs: 0 };
+      const week = weekStart(opened);
+      row.active.add(week);
+      // Repos and pull requests are the season's, like the weeks; the streak
+      // looks further back.
+      if (slot.has(week)) {
+        row.repos.add(entry.repo);
+        row.prs += 1;
+      }
       byHandle.set(key, row);
     }
   }
 
+  const thisWeek = season.weeks[season.current];
   return [...byHandle.values()]
-    .map(({ person, weeks, repos, prs }) => {
-      let at = weeks[CONSISTENCY_WEEKS - 1] ? CONSISTENCY_WEEKS - 1 : CONSISTENCY_WEEKS - 2;
+    .map(({ person, active, repos, prs }) => {
+      const weeks = season.weeks.map((week) => active.has(week));
       let streak = 0;
-      while (at >= 0 && weeks[at]) {
-        streak += 1;
-        at -= 1;
-      }
+      for (let week = active.has(thisWeek) ? thisWeek : addWeeks(thisWeek, -1); active.has(week); week = addWeeks(week, -1)) streak += 1;
       return { person, weeks, filled: weeks.filter(Boolean).length, streak, repos: repos.size, prs };
     })
+    .filter((row) => row.filled > 0)
     .sort(
       (a, b) =>
         b.filled - a.filled ||
@@ -390,6 +426,39 @@ export function consistencyBoard(
         b.prs - a.prs ||
         (a.person.name || a.person.handle).localeCompare(b.person.name || b.person.handle),
     );
+}
+
+/**
+ * What a season can earn, for everybody who gets there — nobody has to be
+ * beaten for one. The last takes every week of the season.
+ */
+export const MILESTONES = [
+  { icon: "🌱", weeks: 4 },
+  { icon: "🔥", weeks: 8 },
+  { icon: "🏆", weeks: Infinity },
+] as const;
+
+/** How many weeks a milestone takes in this season. */
+export function milestoneWeeks(milestone: (typeof MILESTONES)[number], season: Season): number {
+  return Math.min(milestone.weeks, season.weeks.length);
+}
+
+/**
+ * The next milestone a row can still reach this season, and how many more
+ * weeks it takes; null once none is left within reach. This week counts as
+ * still to come while it is empty.
+ */
+export function nextMilestone(
+  filled: number,
+  thisWeekFilled: boolean,
+  season: Season,
+): { milestone: (typeof MILESTONES)[number]; needed: number } | null {
+  const left = season.weeks.length - season.current - 1 + (thisWeekFilled ? 0 : 1);
+  for (const milestone of MILESTONES) {
+    const needed = milestoneWeeks(milestone, season) - filled;
+    if (needed > 0) return needed <= left ? { milestone, needed } : null;
+  }
+  return null;
 }
 
 /** A row of the own-work board. */

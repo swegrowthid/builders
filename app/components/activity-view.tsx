@@ -24,7 +24,6 @@ import {
   inPlace,
   inScope,
   kindCounts,
-  consistencyBoard,
   ownLeaderboard,
   placeCounts,
   repoSummaries,
@@ -34,8 +33,10 @@ import {
   repoName,
   scopeCounts,
   ACTIVITY_PLACES,
-  CONSISTENCY_WEEKS,
   SUMMARY_DAYS,
+  seasonBoard,
+  seasonLabel,
+  seasonOf,
   type ActivityPlace,
   type CommitSummaryEntry,
   type ConsistencyRow,
@@ -44,9 +45,11 @@ import {
   type PullRequestEntry,
   type RepoOrder,
   type PullRequestItem,
+  type Season,
 } from "../lib/github-activity";
 import type { ReactionCount } from "../lib/reactions";
 import { tx, type Locale } from "../lib/locale";
+import { WeekDots } from "./week-dots";
 
 const PAGE_SIZE = 20;
 /** Repositories shown under the leaderboard before "See all": a handful, not the list. */
@@ -140,15 +143,15 @@ export function ActivityView({
   const scoped = useMemo(() => inPlace(inThisScope, place, local), [inThisScope, place, local]);
   const people = useMemo(() => activityPeople(entries), [entries]);
   // Members' own work — the Own scope, or summaries — has its own board;
-  // otherwise the board is who keeps contributing to other people's repos, in
-  // the place showing, by the kind showing: PRs opened (in review or merged),
-  // merged only, or in review only.
+  // otherwise the board is the season's: who keeps contributing to other
+  // people's repos, in the place showing. It does not follow the kind the feed
+  // shows — a week counts the same whatever the feed is narrowed to.
   const ownBoard = current.scope === "own" || current.kind === "commits";
-  const states = current.kind === "merged" ? (["merged"] as const) : current.kind === "open" ? (["open"] as const) : (["merged", "open"] as const);
   const board = useMemo<Board>(
-    () => (ownBoard ? { own: true, rows: ownLeaderboard(entries) } : { own: false, rows: consistencyBoard(inPlace(entries, place, local), today, states) }),
-    [entries, ownBoard, place, local, today, current.kind], // eslint-disable-line react-hooks/exhaustive-deps
+    () => (ownBoard ? { own: true, rows: ownLeaderboard(entries) } : { own: false, rows: seasonBoard(inPlace(entries, place, local), today) }),
+    [entries, ownBoard, place, local, today],
   );
+  const season = useMemo(() => seasonOf(today), [today]);
   const matched = useMemo(
     () => queryActivity(scoped, current),
     [scoped, current.kind, current.member, current.repo, current.q], // eslint-disable-line react-hooks/exhaustive-deps
@@ -192,6 +195,7 @@ export function ActivityView({
         <div className="ax-side">
           <Leaderboard
             board={board}
+            season={season}
             current={current}
             places={current.scope !== "own" && local.size > 0 ? places : null}
             viewerHandle={viewerHandle}
@@ -351,14 +355,8 @@ export function ActivityView({
   );
 }
 
-/** What fills a week on the board, in a sentence: the kind and the place the feed is filtered to. */
+/** What fills a week on the board, in a sentence: the place the feed is filtered to. */
 function countedLabel(current: ActivityFilters, locale: Locale): string {
-  const what =
-    current.kind === "merged"
-      ? tx(locale, "PR yang sudah di-merge", "a PR that has been merged")
-      : current.kind === "open"
-        ? tx(locale, "PR yang sedang direview", "a PR still in review")
-        : tx(locale, "PR yang dibuka", "a PR opened");
   const where =
     current.place === "local"
       ? tx(locale, "repo lokal", "local repos")
@@ -367,8 +365,8 @@ function countedLabel(current: ActivityFilters, locale: Locale): string {
         : tx(locale, "repo orang lain", "other people's repos");
   return tx(
     locale,
-    `Satu minggu terisi kalau ada ${what} ke ${where}, dihitung di minggu PR-nya dibuka. Yang dihitung rutinnya, bukan banyaknya. `,
-    `A week counts when it has ${what} to ${where}, in the week it was opened. It counts keeping at it, not volume. `,
+    `1 minggu 1 PR: minggu terisi kalau ada PR yang dibuka ke ${where}, direview atau sudah di-merge. `,
+    `One PR a week: a week counts when a PR was opened to ${where}, in review or merged. `,
   );
 }
 
@@ -467,14 +465,15 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 type Board = { own: false; rows: ConsistencyRow[] } | { own: true; rows: LeaderboardRow[] };
 
 /**
- * The left column: who keeps contributing to other people's repositories —
- * weeks with a PR out of the last CONSISTENCY_WEEKS, and the streak
- * (see `consistencyBoard`) — or, on the Own scope, members' own work. Each row
- * also narrows the feed beside it to that person. A signed-in member outside
- * the shown rows still sees their own.
+ * The left column: the season's leaders — weeks with a PR so far, and the
+ * streak (see `seasonBoard`), the top few with the whole board a link away on
+ * /leaderboard — or, on the Own scope, members' own work. Each row also
+ * narrows the feed beside it to that person. A signed-in member outside the
+ * shown rows still sees their own.
  */
 function Leaderboard({
   board,
+  season,
   current,
   places,
   viewerHandle,
@@ -482,6 +481,7 @@ function Leaderboard({
   navigate,
 }: {
   board: Board;
+  season: Season;
   current: ActivityFilters;
   /** Moves the page to another address without a reload: the pill's choices. */
   navigate: (href: string) => void;
@@ -491,9 +491,11 @@ function Leaderboard({
   locale: Locale;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { own, rows } = board;
+  const { own } = board;
+  // The season's board is a summary here; the whole of it is on /leaderboard.
+  const rows = own ? board.rows : board.rows.slice(0, BOARD_SHOWN_PHONE);
   const viewerKey = viewerHandle?.toLowerCase() ?? "";
-  const viewerRank = viewerKey ? rows.findIndex(({ person }) => person.handle.toLowerCase() === viewerKey) : -1;
+  const viewerRank = viewerKey ? board.rows.findIndex(({ person }) => person.handle.toLowerCase() === viewerKey) : -1;
   const placeLabels: Record<ActivityPlace, string> = {
     all: tx(locale, "semua repo", "all repos"),
     local: tx(locale, "repo lokal", "local repos"),
@@ -505,7 +507,7 @@ function Leaderboard({
       return { main: `${prs} PR`, side: tx(locale, `${repos} repo`, `${repos} ${repos === 1 ? "repo" : "repos"}`) };
     }
     const { filled, streak } = board.rows[index];
-    return { main: `${filled}/${CONSISTENCY_WEEKS}`, side: streak > 0 ? `🔥 ${streak}` : "" };
+    return { main: `${filled}/${season.current + 1}`, side: streak > 0 ? `🔥 ${streak}` : "" };
   };
 
   return (
@@ -514,8 +516,8 @@ function Leaderboard({
         <h2 id="board-title">
           <span aria-hidden="true">🏆</span> {tx(locale, "Leaderboard", "Leaderboard")}
         </h2>
-        {/* The board's choices read as one line under its name — "last 12
-            weeks · all repos" — the place a pill that opens a native picker.
+        {/* The board's choices read as one line under its name — "season
+            Oct–Dec 2026 · all repos" — the place a pill that opens a native picker.
             A real GET form, so it works before the script does. Own repos
             have no choice: their numbers only come as the last SUMMARY_DAYS. */}
         {own ? (
@@ -530,7 +532,7 @@ function Leaderboard({
             {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
             {current.repo ? <input type="hidden" name="repo" value={current.repo} /> : null}
             {current.q ? <input type="hidden" name="q" value={current.q} /> : null}
-            <span className="ax-pill">{tx(locale, `${CONSISTENCY_WEEKS} minggu terakhir`, `last ${CONSISTENCY_WEEKS} weeks`)}</span>
+            <span className="ax-pill">{tx(locale, `Musim ${seasonLabel(season, "id")}`, `Season ${seasonLabel(season, "en")}`)}</span>
             {places ? (
               <>
                 <span aria-hidden="true">·</span>
@@ -566,8 +568,8 @@ function Leaderboard({
             ? tx(locale, `Belum ada PR merged ke repo sendiri dalam ${SUMMARY_DAYS} hari terakhir.`, `No PRs merged into members' own repos in the last ${SUMMARY_DAYS} days.`)
             : tx(
                 locale,
-                `Belum ada PR dalam ${CONSISTENCY_WEEKS} minggu terakhir. Satu PR minggu ini sudah cukup untuk mulai!`,
-                `No PRs in the last ${CONSISTENCY_WEEKS} weeks. One PR this week is enough to start!`,
+                "Belum ada PR musim ini. Satu PR minggu ini sudah cukup untuk mulai!",
+                "No PRs this season yet. One PR this week is enough to start!",
               )}
         </p>
       ) : (
@@ -589,7 +591,7 @@ function Leaderboard({
                   <Avatar handle={person.handle} size={24} />
                   <span className="ax-board-who">
                     <span className="ax-board-name">{person.name || `@${person.handle}`}</span>
-                    {board.own ? null : <WeekDots weeks={board.rows[index].weeks} locale={locale} />}
+                    {board.own ? null : <WeekDots weeks={board.rows[index].weeks} current={season.current} locale={locale} />}
                   </span>
                   <span className="ax-board-score">
                     <strong>{main}</strong>
@@ -602,13 +604,13 @@ function Leaderboard({
         </ol>
       )}
 
-      {viewerRank >= BOARD_SHOWN_PHONE && !expanded ? (
-        <p className={`ax-board-you ${viewerRank < BOARD_SHOWN ? "is-phone-only" : ""}`}>
+      {viewerRank >= BOARD_SHOWN_PHONE && (!own || !expanded) ? (
+        <p className={`ax-board-you ${own && viewerRank < BOARD_SHOWN ? "is-phone-only" : ""}`}>
           {tx(locale, "Kamu", "You")}: <strong>#{viewerRank + 1}</strong> · {score(viewerRank).main}
         </p>
       ) : null}
 
-      {rows.length > BOARD_SHOWN_PHONE ? (
+      {own && rows.length > BOARD_SHOWN_PHONE ? (
         <button
           type="button"
           className={`ax-board-toggle ${rows.length <= BOARD_SHOWN ? "is-phone-only" : ""}`}
@@ -623,30 +625,16 @@ function Leaderboard({
         {own
           ? tx(locale, "Dihitung dari PR merged ke repo sendiri; seri dipecah jumlah commit. ", "Counts PRs merged into their own repos; commits break ties. ")
           : countedLabel(current, locale)}
-        {/* The full leaderboard — points, badges — is still to come. A plain
-            Link: it leaves this page, where InstantLink only swaps the
-            feed's filters in place. */}
-        <Link href="/leaderboard">
-          {tx(locale, "Leaderboard lengkap segera", "Full leaderboard coming soon")} <span aria-hidden="true">→</span>
+        {/* A plain Link: it leaves this page, where InstantLink only swaps
+            the feed's filters in place. */}
+        <Link href={current.place === "all" || own ? "/leaderboard" : `/leaderboard?place=${current.place}`}>
+          {own
+            ? tx(locale, "Leaderboard musim ini", "This season's leaderboard")
+            : tx(locale, `Leaderboard lengkap (${board.rows.length})`, `Full leaderboard (${board.rows.length})`)}{" "}
+          <span aria-hidden="true">→</span>
         </Link>
       </p>
     </aside>
-  );
-}
-
-/** The last CONSISTENCY_WEEKS weeks as dots, oldest first: filled when a PR was opened in it. */
-function WeekDots({ weeks, locale }: { weeks: boolean[]; locale: Locale }) {
-  const filled = weeks.filter(Boolean).length;
-  return (
-    <span
-      className="ax-weeks"
-      role="img"
-      aria-label={tx(locale, `${filled} dari ${weeks.length} minggu terakhir ada PR`, `${filled} of the last ${weeks.length} weeks had a PR`)}
-    >
-      {weeks.map((on, index) => (
-        <i key={index} className={on ? "is-on" : undefined} />
-      ))}
-    </span>
   );
 }
 

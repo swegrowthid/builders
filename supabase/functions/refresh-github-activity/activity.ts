@@ -26,8 +26,11 @@
 
 /** How many members go into one request. */
 export const BATCH_SIZE = 10;
-/** Pull requests updated in this many days are asked about. */
-export const PULL_REQUEST_DAYS = 90;
+/**
+ * Pull requests updated in this many days are asked about: enough for a whole
+ * leaderboard season, a quarter of 13 or 14 weeks (see app/lib/github-activity.ts).
+ */
+export const PULL_REQUEST_DAYS = 100;
 /** Commits to a member's own repositories are summed over this many days. */
 export const COMMIT_DAYS = 30;
 /** Pull requests one search returns. */

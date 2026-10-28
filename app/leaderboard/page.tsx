@@ -2,22 +2,42 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import Link from "@/app/components/responsive-link";
-import { Arrow, SiteFooter, SiteHeader } from "../components/shell";
+import { SiteFooter, SiteHeader } from "../components/shell";
+import { Skeleton } from "../components/skeleton";
+import { WeekDots } from "../components/week-dots";
 import { leaderboardIssueUrl, shareCard } from "../content";
 import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
 import { site } from "../lib/site";
 import { listGitHubActivity } from "../lib/data";
+import { localRepos } from "../lib/directory-read";
 import { readPublicly } from "../lib/public-read";
-import { CONSISTENCY_WEEKS, consistencyBoard, dayKey, type ConsistencyRow, type GitHubActivityEntry } from "../lib/github-activity";
+import { currentViewer } from "../lib/session";
+import { githubHandle } from "../lib/oss";
+import {
+  ACTIVITY_PLACES,
+  MILESTONES,
+  dayKey,
+  inPlace,
+  isActivityPlace,
+  milestoneWeeks,
+  nextMilestone,
+  seasonBoard,
+  seasonLabel,
+  seasonOf,
+  type ActivityPlace,
+  type ConsistencyRow,
+  type GitHubActivityEntry,
+  type Season,
+} from "../lib/github-activity";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await currentLocale();
   const title = tx(locale, `Leaderboard — ${site.name}`, `Leaderboard — ${site.name}`);
   const description = tx(
     locale,
-    "Papan peringkat kontributor open source komunitas swegrowth. Segera hadir—kasih idemu di issue-nya.",
-    "A leaderboard of the swegrowth community's open source contributors. Coming soon—share your ideas on the issue.",
+    "1 minggu 1 PR: siapa yang rutin berkontribusi ke open source musim ini, di komunitas swegrowth.",
+    "One PR a week: who keeps contributing to open source this season, in the swegrowth community.",
   );
   return {
     title,
@@ -27,78 +47,293 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** What is being worked out on #186: [title id, title en, body id, body en]. */
-const PLANNED: [string, string, string, string][] = [
-  [
-    "Konsistensi, bukan volume",
-    "Consistency, not volume",
-    "1 minggu 1 PR: yang dihitung berapa minggu kamu membuka PR ke repo orang lain—masih direview atau sudah di-merge—bukan berapa banyak PR-nya. Memecah satu perubahan jadi lima PR nggak dapat apa-apa.",
-    "One PR a week: what counts is how many weeks you opened a PR to somebody else's repo—in review or merged—not how many PRs. Splitting one change into five earns nothing.",
-  ],
-  [
-    "Streak",
-    "Streaks",
-    "Minggu berturut-turut yang terisi. Sudah jalan di papan sekarang—12 minggu ke belakang, dan nanti sepanjang masa.",
-    "Weeks in a row. Already on the board—12 weeks back for now, all-time later.",
-  ],
-  [
-    "Badge & milestone",
-    "Badges & milestones",
-    "PR pertama di-merge, PR pertama ke repo global, kontribusi ke 5 repo, dan seterusnya.",
-    "First merged PR, first PR to a global repo, five repos contributed to, and so on.",
-  ],
-  [
-    "Lokal & global, sepanjang masa",
-    "Local & global, all-time",
-    "Peringkat bisa dilihat per repo lokal atau global, untuk 12 minggu terakhir atau sepanjang masa.",
-    "Rankings by local or global repos, over the last 12 weeks or all-time.",
-  ],
-];
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/** Each milestone's name: [id, en]. */
+const MILESTONE_NAMES: Record<string, [string, string]> = {
+  "🌱": ["Mulai rutin", "Getting going"],
+  "🔥": ["Rutin", "Regular"],
+  "🏆": ["Satu musim penuh", "A whole season"],
+};
 
 /**
- * A made-up board for the preview: invented names, not members, and numbers
- * of no meaning. It only shows the shape the real one will take — weeks,
- * streaks, merged PRs, badges, repos — and sits blurred behind the lock.
+ * The leaderboard: one PR a week, a season at a time (see `seasonBoard`).
+ *
+ * It is built for keeping at it rather than for winning: first how the member
+ * looking is doing and what the next step is, then the milestones anybody can
+ * reach, and only then the ranking.
  */
-const PREVIEW_ROWS: { name: string; weeks: number; merged: number; streak: number; badges: string; repos: number; hue: number }[] = [
-  { name: "Raka Pratama", weeks: 11, merged: 18, streak: 6, badges: "🥇🌍🚀", repos: 7, hue: 262 },
-  { name: "Dewi Anggraini", weeks: 10, merged: 15, streak: 5, badges: "🌍🚀", repos: 6, hue: 200 },
-  { name: "Bima Saputra", weeks: 9, merged: 13, streak: 4, badges: "🚀⭐", repos: 5, hue: 24 },
-  { name: "Sinta Maharani", weeks: 8, merged: 10, streak: 3, badges: "⭐", repos: 4, hue: 330 },
-  { name: "Fajar Nugroho", weeks: 7, merged: 9, streak: 3, badges: "🌍", repos: 4, hue: 150 },
-  { name: "Ayu Lestari", weeks: 6, merged: 7, streak: 2, badges: "⭐", repos: 3, hue: 45 },
-  { name: "Galih Wicaksono", weeks: 5, merged: 6, streak: 2, badges: "🌱", repos: 3, hue: 280 },
-  { name: "Nadia Putri", weeks: 4, merged: 4, streak: 1, badges: "🌱", repos: 2, hue: 180 },
-];
+export default async function LeaderboardPage({ searchParams }: { searchParams?: SearchParams }) {
+  const locale = await currentLocale();
+  const query = searchParams ?? Promise.resolve({});
 
-/** How many of the real leaders lead the preview, in the clear. */
-const REAL_SHOWN = 3;
+  return (
+    <>
+      <SiteHeader returnTo="/leaderboard" />
 
-/**
- * The board as it will look. The first rows are real — the leaders by weeks
- * with a PR, the ranking the activity page already shows — and clear;
- * below them made-up rows fade into a blur, under a "coming soon" lock that
- * points to #186. Badges do not exist yet, so the real rows show a dash there.
- */
-async function LivePreview({ locale }: { locale: Locale }) {
-  // Today in WIB is read per request, not frozen into the prerendered shell.
-  await connection();
-  const result = await readPublicly<GitHubActivityEntry[]>("github activity for the leaderboard preview", listGitHubActivity, []);
-  const real = consistencyBoard(result.value, dayKey(new Date(), "Asia/Jakarta")).slice(0, REAL_SHOWN);
-  return <LockedPreview locale={locale} real={real} />;
+      <main id="main-content" className="ab-page lb-page">
+        <Suspense fallback={<LeaderboardSkeleton locale={locale} />}>
+          <LeaderboardBody query={query} locale={locale} />
+        </Suspense>
+
+        <section className="ab-section" aria-labelledby="next-title">
+          <h2 id="next-title">{tx(locale, "Berikutnya", "Next")}</h2>
+          <p className="lb-note">
+            {tx(
+              locale,
+              "Arsip juara tiap musim dan badge lain lagi dibahas terbuka. Punya ide yang bikin kamu pengin kontribusi lebih sering? ",
+              "A record of each season's leaders and more badges are being worked out in the open. Got an idea that would make you contribute more often? ",
+            )}
+            <a href={leaderboardIssueUrl} target="_blank" rel="noopener noreferrer">
+              {tx(locale, "Tulis di #186", "Say it on #186")} <span aria-hidden="true">↗</span>
+            </a>
+          </p>
+        </section>
+      </main>
+
+      <SiteFooter />
+    </>
+  );
 }
 
-function LockedPreview({ locale, real }: { locale: Locale; real: ConsistencyRow[] }) {
-  const made = PREVIEW_ROWS.slice(0, PREVIEW_ROWS.length - real.length);
+/** The heading; the season line waits for the request, since it depends on today. */
+function Intro({ locale, season }: { locale: Locale; season?: Season }) {
   return (
-    // The fog starts right under the last real row, so no made-up name is
-    // ever read as a member's: the note, the head, then about 49px a row.
-    <section className="lb-preview" aria-labelledby="lb-lock-title" style={{ "--lb-clear": `${66 + real.length * 49}px` } as React.CSSProperties}>
-      <p className="lb-preview-note">
-        {real.length > 0
-          ? tx(locale, `Konsistensi ${CONSISTENCY_WEEKS} minggu terakhir`, `Consistency over the last ${CONSISTENCY_WEEKS} weeks`)
-          : tx(locale, "Contoh tampilan", "What it will look like")}
+    <header className="ab-intro" aria-labelledby="leaderboard-title">
+      <h1 id="leaderboard-title">
+        <span aria-hidden="true">🏆</span> Leaderboard
+      </h1>
+      <p className="lb-season">
+        {season
+          ? tx(
+              locale,
+              `Musim ${seasonLabel(season, "id")} · minggu ke-${season.current + 1} dari ${season.weeks.length}`,
+              `Season ${seasonLabel(season, "en")} · week ${season.current + 1} of ${season.weeks.length}`,
+            )
+          : "\u00a0"}
       </p>
+      <div className="ab-story">
+        <p>
+          {tx(
+            locale,
+            "1 minggu 1 PR. Minggumu terisi kalau kamu membuka PR ke repo orang lain—masih direview atau sudah di-merge. Yang dihitung rutinnya, bukan banyaknya. Tiap kuartal musim baru dimulai, dan semua mulai lagi dari nol.",
+            "One PR a week. A week counts when you open a PR to somebody else's repo—in review or merged. It counts keeping at it, not volume. A new season starts every quarter, and everybody starts again from zero.",
+          )}
+        </p>
+      </div>
+    </header>
+  );
+}
+
+async function LeaderboardBody({ query, locale }: { query: SearchParams; locale: Locale }) {
+  const values = await query;
+  // Today in WIB is read per request, not frozen into the prerendered shell.
+  await connection();
+  const asked = typeof values.place === "string" ? values.place : "";
+  const today = dayKey(new Date(), "Asia/Jakarta");
+  const season = seasonOf(today);
+  const [result, viewer, local] = await Promise.all([
+    readPublicly<GitHubActivityEntry[]>("github activity for the leaderboard", listGitHubActivity, []),
+    currentViewer(),
+    localRepos(locale),
+  ]);
+  const localSet = new Set(local);
+  // Local or global only when the directory knows which repos are local.
+  const place: ActivityPlace = local.length > 0 && isActivityPlace(asked) ? asked : "all";
+  const everywhere = seasonBoard(result.value, today);
+  const rows = place === "all" ? everywhere : seasonBoard(inPlace(result.value, place, localSet), today);
+
+  const viewerHandle = viewer?.githubActivityShown ? githubHandle(viewer.github) : "";
+  const viewerKey = viewerHandle.toLowerCase();
+  const mine = viewerKey ? everywhere.find(({ person }) => person.handle.toLowerCase() === viewerKey) : undefined;
+
+  return (
+    <>
+      <Intro locale={locale} season={season} />
+
+      <YourSeason
+        locale={locale}
+        season={season}
+        state={!viewer ? "guest" : !viewerHandle ? "hidden" : "shown"}
+        row={mine}
+      />
+
+      <section className="ab-section" aria-labelledby="milestones-title">
+        <h2 id="milestones-title">{tx(locale, "Milestone musim ini", "This season's milestones")}</h2>
+        <p className="lb-note">
+          {tx(locale, "Bisa diraih siapa pun—nggak perlu mengalahkan siapa-siapa.", "Anybody can reach them—nobody has to be beaten.")}
+        </p>
+        <ul className="lb-milestones">
+          {MILESTONES.map((milestone) => {
+            const weeks = milestoneWeeks(milestone, season);
+            const reached = everywhere.filter((row) => row.filled >= weeks).length;
+            const [nameId, nameEn] = MILESTONE_NAMES[milestone.icon];
+            return (
+              <li key={milestone.icon} className={mine && mine.filled >= weeks ? "is-mine" : undefined}>
+                <span className="lb-milestone-icon" aria-hidden="true">
+                  {milestone.icon}
+                </span>
+                <strong>{tx(locale, nameId, nameEn)}</strong>
+                <span>{tx(locale, `${weeks} minggu terisi`, `${weeks} weeks filled`)}</span>
+                <small>
+                  {reached > 0
+                    ? tx(locale, `${reached} member sudah`, `${reached} ${reached === 1 ? "member has" : "members have"}`)
+                    : tx(locale, "Belum ada yang sampai", "Nobody yet")}
+                </small>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section className="ab-section" aria-labelledby="board-title">
+        <div className="lb-board-head">
+          <h2 id="board-title">{tx(locale, "Papan musim ini", "This season's board")}</h2>
+          {local.length > 0 ? <PlacePills place={place} locale={locale} /> : null}
+        </div>
+        {result.unavailable ? (
+          <p className="lb-note">{tx(locale, "Data aktivitas sedang tidak bisa dibaca. Coba lagi sebentar.", "The activity could not be read just now. Try again shortly.")}</p>
+        ) : rows.length === 0 ? (
+          <p className="lb-note">
+            {tx(locale, "Belum ada PR musim ini. Satu PR minggu ini sudah cukup untuk jadi yang pertama!", "No PRs this season yet. One PR this week is enough to be the first!")}
+          </p>
+        ) : (
+          <SeasonTable rows={rows} season={season} viewerKey={viewerKey} locale={locale} />
+        )}
+        <p className="lb-note">
+          {tx(
+            locale,
+            "Urutan: minggu terisi, lalu streak, lalu jumlah repo, lalu jumlah PR. Streak berlanjut antar-musim, dan minggu ini belum memutusnya sampai Minggu berakhir (WIB).",
+            "Ranked by weeks filled, then the streak, then repos, then PRs. A streak carries across seasons, and this week does not break it until Sunday is over (WIB).",
+          )}
+        </p>
+      </section>
+    </>
+  );
+}
+
+/**
+ * The member looking, first: their weeks, their streak, whether this week is
+ * done, and the next milestone within reach — with a way to a repo when this
+ * week is still empty.
+ */
+function YourSeason({
+  locale,
+  season,
+  state,
+  row,
+}: {
+  locale: Locale;
+  season: Season;
+  state: "guest" | "hidden" | "shown";
+  row: ConsistencyRow | undefined;
+}) {
+  if (state === "guest") {
+    return (
+      <section className="lb-you" aria-labelledby="you-title">
+        <h2 id="you-title">{tx(locale, "Progresmu", "Your progress")}</h2>
+        <p>{tx(locale, "Masuk dan hubungkan GitHub-mu untuk melihat minggu-minggumu di musim ini.", "Sign in and link your GitHub to see your weeks this season.")}</p>
+        <Link className="ab-button ab-button-primary" href="/signin?next=%2Fleaderboard">
+          {tx(locale, "Masuk", "Sign in")}
+        </Link>
+      </section>
+    );
+  }
+  if (state === "hidden") {
+    return (
+      <section className="lb-you" aria-labelledby="you-title">
+        <h2 id="you-title">{tx(locale, "Progresmu", "Your progress")}</h2>
+        <p>
+          {tx(
+            locale,
+            "Hubungkan GitHub-mu dan tampilkan aktivitasnya supaya minggumu ikut terhitung.",
+            "Link your GitHub and show its activity so your weeks count.",
+          )}
+        </p>
+        <Link className="ab-button ab-button-primary" href="/account/profile#github-account">
+          {tx(locale, "Atur di profil", "Set it up in your profile")}
+        </Link>
+      </section>
+    );
+  }
+
+  const weeks = row?.weeks ?? season.weeks.map(() => false);
+  const filled = row?.filled ?? 0;
+  const streak = row?.streak ?? 0;
+  const thisWeek = weeks[season.current];
+  const next = nextMilestone(filled, thisWeek, season);
+  const [nameId, nameEn] = next ? MILESTONE_NAMES[next.milestone.icon] : ["", ""];
+
+  return (
+    <section className={`lb-you ${thisWeek ? "is-done" : ""}`} aria-labelledby="you-title">
+      <h2 id="you-title">{tx(locale, "Progresmu musim ini", "Your season so far")}</h2>
+      <WeekDots weeks={weeks} current={season.current} locale={locale} />
+      <dl className="lb-you-stats">
+        <div>
+          <dt>{tx(locale, "Minggu terisi", "Weeks filled")}</dt>
+          <dd>
+            {filled}/{season.current + 1}
+          </dd>
+        </div>
+        <div>
+          <dt>Streak</dt>
+          <dd>{streak > 0 ? `🔥 ${streak}` : "—"}</dd>
+        </div>
+        <div>
+          <dt>{tx(locale, "Minggu ini", "This week")}</dt>
+          <dd>{thisWeek ? tx(locale, "✓ Sudah", "✓ Done") : tx(locale, "Belum", "Not yet")}</dd>
+        </div>
+      </dl>
+      <p>
+        {thisWeek
+          ? tx(locale, "Minggu ini sudah terisi. Sampai jumpa minggu depan!", "This week is done. See you next week!")
+          : streak > 0
+            ? tx(locale, `1 PR minggu ini menjaga streak 🔥 ${streak}-mu.`, `One PR this week keeps your 🔥 ${streak} streak going.`)
+            : tx(locale, "1 PR minggu ini sudah cukup untuk mulai.", "One PR this week is enough to start.")}{" "}
+        {next
+          ? tx(
+              locale,
+              `${next.needed} minggu lagi ke ${next.milestone.icon} ${nameId}.`,
+              `${next.needed} more ${next.needed === 1 ? "week" : "weeks"} to ${next.milestone.icon} ${nameEn}.`,
+            )
+          : null}
+      </p>
+      {thisWeek ? null : (
+        <Link className="ab-button ab-button-primary" href="/directory">
+          {tx(locale, "Cari repo untuk PR minggu ini", "Find a repo for this week's PR")} <span aria-hidden="true">→</span>
+        </Link>
+      )}
+    </section>
+  );
+}
+
+/** All repos, local or global: plain links, so the choice works without a script. */
+function PlacePills({ place, locale }: { place: ActivityPlace; locale: Locale }) {
+  const labels: Record<ActivityPlace, string> = {
+    all: tx(locale, "Semua repo", "All repos"),
+    local: tx(locale, "Repo lokal", "Local repos"),
+    global: tx(locale, "Repo global", "Global repos"),
+  };
+  return (
+    <nav className="lb-places" aria-label={tx(locale, "Repo lokal atau global", "Local or global repos")}>
+      {ACTIVITY_PLACES.map((option) => (
+        <Link
+          key={option}
+          className={`lb-place ${option === place ? "is-set" : ""}`}
+          href={option === "all" ? "/leaderboard" : `/leaderboard?place=${option}`}
+          aria-current={option === place ? "true" : undefined}
+          scroll={false}
+        >
+          {labels[option]}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+function SeasonTable({ rows, season, viewerKey, locale }: { rows: ConsistencyRow[]; season: Season; viewerKey: string; locale: Locale }) {
+  return (
+    <div className="lb-table">
       <table className="lb-board">
         <thead>
           <tr>
@@ -106,146 +341,48 @@ function LockedPreview({ locale, real }: { locale: Locale; real: ConsistencyRow[
             <th>{tx(locale, "Member", "Member")}</th>
             <th>{tx(locale, "Minggu", "Weeks")}</th>
             <th>Streak</th>
-            <th className="lb-wide">PR</th>
+            <th className="lb-wide">Milestone</th>
             <th className="lb-wide">Repo</th>
-            <th className="lb-wide">Badge</th>
+            <th className="lb-wide">PR</th>
           </tr>
         </thead>
         <tbody>
-          {real.map(({ person, filled, streak, prs, repos }, index) => (
-            <tr key={person.id}>
+          {rows.map(({ person, weeks, filled, streak, repos, prs }, index) => (
+            <tr key={person.id} className={person.handle.toLowerCase() === viewerKey ? "is-mine" : undefined}>
               <td>{["🥇", "🥈", "🥉"][index] ?? index + 1}</td>
               <td>
                 {/* eslint-disable-next-line @next/next/no-img-element -- the member's GitHub picture */}
                 <img className="lb-avatar" src={`https://github.com/${encodeURIComponent(person.handle)}.png?size=56`} alt="" width={28} height={28} />
-                {person.name || `@${person.handle}`}
+                <span className="lb-who">
+                  <Link href={`/u/${encodeURIComponent(person.username)}`}>{person.name || `@${person.handle}`}</Link>
+                  <WeekDots weeks={weeks} current={season.current} locale={locale} />
+                </span>
               </td>
               <td className="lb-points">
-                {filled}/{CONSISTENCY_WEEKS}
+                {filled}/{season.current + 1}
               </td>
               <td>{streak > 0 ? `🔥 ${streak}` : "—"}</td>
-              <td className="lb-wide">{prs}</td>
+              <td className="lb-wide">
+                {MILESTONES.filter((milestone) => filled >= milestoneWeeks(milestone, season))
+                  .map((milestone) => milestone.icon)
+                  .join("") || "—"}
+              </td>
               <td className="lb-wide">{repos}</td>
-              <td className="lb-wide lb-soon-cell">—</td>
-            </tr>
-          ))}
-          {/* Made-up rows from here on, hidden from assistive tech: they only
-              show the shape of the board to come, and fade into the blur. */}
-          {made.map((row, index) => (
-            <tr key={row.name} aria-hidden="true" className="lb-made">
-              <td>{["🥇", "🥈", "🥉"][real.length + index] ?? real.length + index + 1}</td>
-              <td>
-                <span className="lb-avatar" style={{ "--hue": row.hue } as React.CSSProperties}>
-                  {row.name.split(" ").map((part) => part[0]).join("")}
-                </span>
-                {row.name}
-              </td>
-              <td className="lb-points">
-                {row.weeks}/{CONSISTENCY_WEEKS}
-              </td>
-              <td>🔥 {row.streak}</td>
-              <td className="lb-wide">{row.merged}</td>
-              <td className="lb-wide">{row.repos}</td>
-              <td className="lb-wide">{row.badges}</td>
+              <td className="lb-wide">{prs}</td>
             </tr>
           ))}
         </tbody>
       </table>
-
-      {/* The fog: no blur at the top, more and more further down. */}
-      <div className="lb-fog" aria-hidden="true" />
-
-      <div className="lb-lock">
-        <span className="lb-lock-icon" aria-hidden="true">🔒</span>
-        <h2 id="lb-lock-title">{tx(locale, "Segera hadir", "Coming soon")}</h2>
-        <p>
-          {tx(
-            locale,
-            "Badge, milestone, dan papan sepanjang masa lagi kami siapkan. Bantu tentukan aturannya.",
-            "Badges, milestones and an all-time board are on their way. Help decide the rules.",
-          )}
-        </p>
-        <a className="ab-button ab-button-primary" href={leaderboardIssueUrl} target="_blank" rel="noopener noreferrer">
-          {tx(locale, "Kasih ide di #186", "Share ideas on #186")} <span aria-hidden="true">↗</span>
-        </a>
-      </div>
-    </section>
+    </div>
   );
 }
 
-/**
- * The leaderboard, before it exists.
- *
- * Badges and an all-time board are still being worked out on #186, so this
- * page says what is planned and asks for ideas there. The ranking itself —
- * weeks with a PR out of the last twelve — already sits beside the
- * activity page's feed (`/`); this page points to it.
- */
-export default async function LeaderboardPage() {
-  const locale = await currentLocale();
-
+function LeaderboardSkeleton({ locale }: { locale: Locale }) {
   return (
-    <>
-      <SiteHeader returnTo="/leaderboard" />
-
-      <main id="main-content" className="ab-page lb-soon">
-        <header className="ab-intro" aria-labelledby="leaderboard-title">
-          <p className="lb-soon-badge tone-done">{tx(locale, "Segera hadir", "Coming soon")}</p>
-          <h1 id="leaderboard-title">
-            <span aria-hidden="true">🏆</span> Leaderboard
-          </h1>
-          <div className="ab-story">
-            <p>
-              {tx(
-                locale,
-                "Papan peringkat kontributor open source komunitas swegrowth. Yang dihargai rutinnya, bukan banyaknya: 1 minggu 1 PR. Badge dan papan sepanjang masa lagi kami siapkan, dan aturannya dibahas terbuka—kamu bisa ikut menentukan.",
-                "A leaderboard of the swegrowth community's open source contributors. It rewards keeping at it, not volume: one PR a week. Badges and an all-time board are on their way, and the rules are worked out in the open—you can help shape them.",
-              )}
-            </p>
-          </div>
-        </header>
-
-        {/* Made-up rows only, until the real ones have been read. */}
-        <Suspense fallback={<LockedPreview locale={locale} real={[]} />}>
-          <LivePreview locale={locale} />
-        </Suspense>
-
-        <section className="ab-section" aria-labelledby="planned-title">
-          <h2 id="planned-title">{tx(locale, "Yang lagi direncanakan", "What is planned")}</h2>
-          <ul className="ab-cards ab-cards-two">
-            {PLANNED.map(([titleId, titleEn, bodyId, bodyEn]) => (
-              <li key={titleEn} className="ab-card tone-done">
-                <h3>{tx(locale, titleId, titleEn)}</h3>
-                <p>{tx(locale, bodyId, bodyEn)}</p>
-              </li>
-            ))}
-          </ul>
-          <Link className="ab-more" href="/">
-            {tx(locale, "Lihat peringkat lengkapnya di Aktivitas", "See the full ranking on Activity")} <Arrow />
-          </Link>
-        </section>
-
-        <section className="ab-cta tone-done" aria-labelledby="leaderboard-cta-title">
-          <h2 id="leaderboard-cta-title">{tx(locale, "Punya ide? Ikut tentukan.", "Got an idea? Help decide.")}</h2>
-          <p>
-            {tx(
-              locale,
-              "Apa yang bikin kamu pengin kontribusi lebih sering? Apa yang terasa “gamey” dengan cara yang nggak enak? Tulis di issue-nya.",
-              "What would make you contribute more often? What feels gamey in a bad way? Say it on the issue.",
-            )}
-          </p>
-          <div className="ab-cta-actions">
-            <a className="ab-button ab-button-primary" href={leaderboardIssueUrl} target="_blank" rel="noopener noreferrer">
-              {tx(locale, "Buka issue #186", "Open issue #186")} <span aria-hidden="true">↗</span>
-            </a>
-            <Link className="ab-button" href="/">
-              {tx(locale, "Lihat aktivitas", "See the activity")}
-            </Link>
-          </div>
-        </section>
-      </main>
-
-      <SiteFooter />
-    </>
+    <div aria-busy="true">
+      <Intro locale={locale} />
+      <Skeleton height={150} style={{ borderRadius: 12, marginTop: 24 }} />
+      <Skeleton height={320} style={{ borderRadius: 12, marginTop: 32 }} />
+    </div>
   );
 }

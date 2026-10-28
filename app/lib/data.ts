@@ -1798,8 +1798,8 @@ export async function isSiteAdmin(): Promise<boolean> {
  * Read apart: members' own pull requests come by the hundred — a busy week on
  * one's own project is dozens — and read together they crowded out the
  * contributions the page and its board are for, down to the last few days.
- * Contributions are read back as far as the board looks (CONSISTENCY_WEEKS,
- * inside the Edge Function's 90 days); own work only for its summary's
+ * Contributions are read back as far as the Edge Function keeps them (its
+ * PULL_REQUEST_DAYS, a leaderboard season and a little); own work only for its summary's
  * SUMMARY_DAYS. 1,000 is also PostgREST's cap on one read.
  */
 const GITHUB_CONTRIBUTIONS_LIMIT = 1000;
