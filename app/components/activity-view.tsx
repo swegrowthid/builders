@@ -35,15 +35,12 @@ import {
   repoName,
   scopeCounts,
   ACTIVITY_PLACES,
-  BOARD_COUNTS,
   BOARD_SPANS,
   boardEntries,
   SUMMARY_DAYS,
   boardWindow,
   isBoardSpan,
   seasonBoard,
-  seasonLabel,
-  seasonOf,
   type ActivityPlace,
   type BoardSpan,
   type BoardWindow,
@@ -54,7 +51,6 @@ import {
   type PullRequestEntry,
   type RepoOrder,
   type PullRequestItem,
-  type Season,
 } from "../lib/github-activity";
 import type { ReactionCount } from "../lib/reactions";
 import { tx, type Locale } from "../lib/locale";
@@ -158,7 +154,6 @@ export function ActivityView({
   // Own repos — PRs to their own repos; every PR opened, or only those merged
   // (see `boardChoice`).
   const choice = boardChoice(current);
-  const season = useMemo(() => seasonOf(today), [today]);
   const boardWeeks = useMemo(() => boardWindow(today, current.weeks), [today, current.weeks]);
   const board = useMemo(
     () =>
@@ -211,7 +206,6 @@ export function ActivityView({
           <Leaderboard
             rows={board}
             choice={choice}
-            season={season}
             boardWeeks={boardWeeks}
             current={current}
             places={current.scope !== "own" && local.size > 0 ? places : null}
@@ -473,7 +467,6 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 function Leaderboard({
   rows: all,
   choice,
-  season,
   boardWeeks,
   current,
   places,
@@ -483,7 +476,6 @@ function Leaderboard({
 }: {
   rows: ConsistencyRow[];
   choice: LeaderboardChoice;
-  season: Season;
   /** The weeks the board counts: the season's, or the last four or eight. */
   boardWeeks: BoardWindow;
   current: ActivityFilters;
@@ -503,10 +495,15 @@ function Leaderboard({
     global: tx(locale, "repo global", "global repos"),
   };
   const spanLabels: Record<BoardSpan, string> = {
-    "4": tx(locale, "4 minggu terakhir", "last 4 weeks"),
-    "8": tx(locale, "8 minggu terakhir", "last 8 weeks"),
-    season: tx(locale, `musim ${seasonLabel(season, "id")}`, `season ${seasonLabel(season, "en")}`),
+    "4": tx(locale, "4 minggu", "4 weeks"),
+    "8": tx(locale, "8 minggu", "8 weeks"),
+    // Short: the season's months are in the ⓘ.
+    season: tx(locale, "musim ini", "this season"),
   };
+  const countName =
+    choice.count === "merged"
+      ? tx(locale, "Menghitung PR merged saja. Ganti ke semua PR yang dibuka", "Counting merged PRs only. Switch to every PR opened")
+      : tx(locale, "Menghitung semua PR yang dibuka. Ganti ke PR merged saja", "Counting every PR opened. Switch to merged PRs only");
   const score = ({ filled }: ConsistencyRow) => `${filled}/${boardWeeks.current + 1}`;
   const where = choice.of === "own" ? tx(locale, "repo sendiri", "own repos") : tx(locale, "repo orang lain", "other people's repos");
 
@@ -519,25 +516,17 @@ function Leaderboard({
             <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
           </h2>
           {/* Which PRs fill a week, as the feed draws them: every one opened
-              (green), or only the merged (purple). Links, so they work before
-              the script does. */}
-          <span className="ax-count" role="group" aria-label={tx(locale, "PR yang dihitung", "PRs counted")}>
-            {BOARD_COUNTS.map((count) => {
-              const name = count === "merged" ? tx(locale, "Hanya PR merged", "Merged PRs only") : tx(locale, "Semua PR yang dibuka", "Every PR opened");
-              return (
-                <InstantLink
-                  key={count}
-                  href={activityPath({ ...current, count })}
-                  className={count === choice.count ? "is-set" : undefined}
-                  aria-current={count === choice.count ? "true" : undefined}
-                  aria-label={name}
-                  title={name}
-                >
-                  <PullRequestIcon merged={count === "merged"} />
-                </InstantLink>
-              );
-            })}
-          </span>
+              (green), or only the merged (purple). One button showing the
+              count in use; pressing it switches to the other. A link, so it
+              works before the script does. */}
+          <InstantLink
+            className="ax-count"
+            href={activityPath({ ...current, count: choice.count === "merged" ? "opened" : "merged" })}
+            aria-label={countName}
+            title={countName}
+          >
+            <PullRequestIcon merged={choice.count === "merged"} />
+          </InstantLink>
         </div>
         {/* The board's choices read as one line under its name — "season
             Oct–Dec 2026 · all repos" — each a pill that opens a native picker;

@@ -1,4 +1,4 @@
-import type { BoardCount, BoardOf, BoardSpan, BoardWindow } from "../lib/github-activity";
+import { seasonLabel, seasonOf, type BoardCount, type BoardOf, type BoardSpan, type BoardWindow } from "../lib/github-activity";
 import { tx, type Locale } from "../lib/locale";
 
 /**
@@ -41,6 +41,8 @@ export function BoardInfo({
 }) {
   const soFar = weeks.current + 1;
   const total = weeks.weeks.length;
+  // The season's Monday weeks all fall in its quarter: its first names it.
+  const months = span === "season" ? seasonLabel(seasonOf(weeks.weeks[0]), locale) : "";
   return (
     <span className="info-tip">
       <button type="button" className="info-tip-icon" aria-label={tx(locale, "Cara membaca skor", "How to read the scores")}>
@@ -53,7 +55,7 @@ export function BoardInfo({
             <br />
             <b>x/{soFar}</b>{" "}
             {span === "season"
-              ? `= minggu yang ada PR-nya, dari ${soFar} minggu musim ini yang sudah berjalan (musim ini ${total} minggu).`
+              ? `= minggu yang ada PR-nya, dari ${soFar} minggu musim ini yang sudah berjalan (musim ${months}, ${total} minggu).`
               : `= minggu yang ada PR-nya, dari ${total} minggu terakhir termasuk minggu ini.`}{" "}
             {soFar}/{soFar} berarti nggak pernah absen.
             <br />
@@ -68,7 +70,7 @@ export function BoardInfo({
             <br />
             <b>x/{soFar}</b>{" "}
             {span === "season"
-              ? `= weeks with a PR, out of the season's ${soFar} weeks so far (it has ${total}).`
+              ? `= weeks with a PR, out of the season's ${soFar} weeks so far (${months}, ${total} weeks).`
               : `= weeks with a PR, out of the last ${total} weeks, this one included.`}{" "}
             {soFar}/{soFar} means not a week missed.
             <br />
