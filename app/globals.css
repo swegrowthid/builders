@@ -1675,6 +1675,12 @@ form button[aria-busy="true"]::after,
 .ax-weeks i.is-on { background: var(--tone); }
 .ax-weeks i.is-now { outline: 1.5px solid var(--tone); outline-offset: 1px; }
 .ax-weeks i.is-later { opacity: .4; }
+/* Slim: a thin bar of segments under a name in a list — this week a
+   half-tone until it is filled, no ring. */
+.ax-weeks.is-slim { gap: 1.5px; margin-top: 3px; }
+.ax-weeks.is-slim i { border-radius: 1px; height: 3px; width: 7px; }
+.ax-weeks.is-slim i.is-now { outline: 0; }
+.ax-weeks.is-slim i.is-now:not(.is-on) { background: color-mix(in srgb, var(--tone) 35%, var(--dx-line)); }
 .ax-board-score { align-items: baseline; color: var(--dx-muted); display: flex; font-size: 12px; gap: 6px; line-height: 1.2; white-space: nowrap; }
 .ax-board-score strong { color: var(--tone); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 700; }
 .ax-board-score small { font-size: 11px; }

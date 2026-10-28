@@ -3,13 +3,14 @@ import { tx, type Locale } from "../lib/locale";
 
 /**
  * A board's weeks as dots, oldest first: filled when a PR was opened in it,
- * this week ringed, the weeks still to come faint.
+ * this week ringed, the weeks still to come faint. Slim: one thin bar of
+ * segments, for a row in a list.
  */
-export function WeekDots({ weeks, current, locale }: { weeks: boolean[]; current: number; locale: Locale }) {
+export function WeekDots({ weeks, current, slim = false, locale }: { weeks: boolean[]; current: number; slim?: boolean; locale: Locale }) {
   const filled = weeks.filter(Boolean).length;
   return (
     <span
-      className="ax-weeks"
+      className={`ax-weeks ${slim ? "is-slim" : ""}`}
       role="img"
       aria-label={tx(locale, `${filled} dari ${current + 1} minggu ada PR`, `${filled} of ${current + 1} weeks so far had a PR`)}
     >
@@ -25,18 +26,7 @@ export function WeekDots({ weeks, current, locale }: { weeks: boolean[]; current
  * or on focus for a keyboard or a tap. Plain CSS (.info-tip), so it works
  * before the script does.
  */
-export function BoardInfo({
-  weeks,
-  span,
-  dots = true,
-  locale,
-}: {
-  weeks: BoardWindow;
-  span: BoardSpan;
-  /** Whether the board beside it shows each week as a dot. */
-  dots?: boolean;
-  locale: Locale;
-}) {
+export function BoardInfo({ weeks, span, locale }: { weeks: BoardWindow; span: BoardSpan; locale: Locale }) {
   const soFar = weeks.current + 1;
   const total = weeks.weeks.length;
   return (
@@ -56,13 +46,9 @@ export function BoardInfo({
             {soFar}/{soFar} berarti nggak pernah absen.
             <br />
             <b>🔥</b> = streak, minggu berturut-turut ada PR.
-            {dots ? <br /> : null}
-            {dots ? (
-              <>
-                <b>Titik</b> = {span === "season" ? "minggu-minggu musim ini" : `${total} minggu terakhir`}; yang berbingkai minggu ini
-                {span === "season" ? ", yang pudar belum tiba" : ""}.
-              </>
-            ) : null}
+            <br />
+            <b>Bar</b> = satu kotak per minggu, {span === "season" ? "sepanjang musim" : `${total} minggu terakhir`}; berwarna kalau ada PR,
+            minggu ini paling akhir{span === "season" ? ", yang pudar belum tiba" : ""}.
           </>
         ) : (
           <>
@@ -75,13 +61,9 @@ export function BoardInfo({
             {soFar}/{soFar} means not a week missed.
             <br />
             <b>🔥</b> = streak, weeks in a row with a PR.
-            {dots ? <br /> : null}
-            {dots ? (
-              <>
-                <b>Dots</b> = {span === "season" ? "the season's weeks" : `the last ${total} weeks`}; the ringed one is this week
-                {span === "season" ? ", the faint ones are still to come" : ""}.
-              </>
-            ) : null}
+            <br />
+            <b>Bar</b> = one block a week, {span === "season" ? "across the season" : `the last ${total} weeks`}; coloured when it had a PR,
+            this week last{span === "season" ? ", the faint ones still to come" : ""}.
           </>
         )}
       </span>

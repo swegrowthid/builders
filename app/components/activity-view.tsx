@@ -55,7 +55,7 @@ import {
 } from "../lib/github-activity";
 import type { ReactionCount } from "../lib/reactions";
 import { tx, type Locale } from "../lib/locale";
-import { BoardInfo, ThisWeek } from "./week-dots";
+import { BoardInfo, ThisWeek, WeekDots } from "./week-dots";
 
 const PAGE_SIZE = 20;
 /** Repositories shown under the leaderboard before "See all": a handful, not the list. */
@@ -519,7 +519,7 @@ function Leaderboard({
       <div className="ax-board-head">
         <h2 id="board-title">
           <span aria-hidden="true">🏆</span> {own ? "Leaderboard" : "Weeks of contribution"}
-          {own ? null : <BoardInfo weeks={boardWeeks} span={current.weeks} dots={false} locale={locale} />}
+          {own ? null : <BoardInfo weeks={boardWeeks} span={current.weeks} locale={locale} />}
         </h2>
         {/* The board's choices read as one line under its name — "season
             Oct–Dec 2026 · all repos" — the place a pill that opens a native picker.
@@ -617,6 +617,7 @@ function Leaderboard({
                   <Avatar handle={person.handle} size={24} />
                   <span className="ax-board-who">
                     <span className="ax-board-name">{person.name || `@${person.handle}`}</span>
+                    {board.own ? null : <WeekDots weeks={board.rows[index].weeks} current={boardWeeks.current} slim locale={locale} />}
                   </span>
                   <span className="ax-board-score">
                     <strong>{main}</strong>

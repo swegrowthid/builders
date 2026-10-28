@@ -426,7 +426,7 @@ function SeasonTable({
                 <img className="lb-avatar" src={`https://github.com/${encodeURIComponent(person.handle)}.png?size=56`} alt="" width={28} height={28} />
                 <span className="lb-who">
                   <Link href={`/u/${encodeURIComponent(person.username)}`}>{person.name || `@${person.handle}`}</Link>
-                  <WeekDots weeks={weeks} current={boardWeeks.current} locale={locale} />
+                  <WeekDots weeks={weeks} current={boardWeeks.current} slim locale={locale} />
                 </span>
               </td>
               <td className="lb-points">
