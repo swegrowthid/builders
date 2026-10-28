@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MILESTONES, milestoneWeeks, nextMilestone, seasonBoard, seasonLabel, seasonOf, weekStart } from "../app/lib/github-activity.ts";
-import { activityPath, readActivityFilters } from "../app/lib/activity-url.ts";
+import { MILESTONES, boardWindow, milestoneWeeks, nextMilestone, seasonBoard, seasonLabel, seasonOf, weekStart } from "../app/lib/github-activity.ts";
+import { activityPath, leaderboardPath, readActivityFilters } from "../app/lib/activity-url.ts";
 
 const person = (handle, name = handle) => ({ id: handle, username: handle, name, handle });
 const pr = (who, repo, state, ...ats) => ({
@@ -119,6 +119,38 @@ test("the next milestone is the first not yet reached, while the season can stil
   assert.deepEqual(next(3, false, late), ["🌱", 1]);
   assert.equal(next(8, false, late), null, "a whole season is out of reach");
   assert.equal(next(13, true, late), null, "all reached");
+});
+
+test("the last four or eight weeks roll back across seasons, this week last", () => {
+  assert.deepEqual(boardWindow("2026-10-27", "4"), { weeks: ["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"], current: 3 });
+  const eight = boardWindow("2026-10-27", "8");
+  assert.equal(eight.weeks[0], "2026-09-07", "into last season");
+  assert.equal(eight.current, 7);
+  assert.deepEqual(boardWindow("2026-10-27", "season"), seasonOf("2026-10-27"));
+
+  const ana = person("ana");
+  const bo = person("bo");
+  // Ana: two weeks last season and one this; Bo: one this season only.
+  const entries = [
+    pr(ana, "acme/one", "merged", "2026-09-15T03:00:00Z", "2026-09-22T03:00:00Z", "2026-10-06T03:00:00Z"),
+    pr(bo, "acme/two", "open", "2026-10-13T03:00:00Z", "2026-10-20T03:00:00Z"),
+  ];
+  const season = seasonBoard(entries, "2026-10-27");
+  assert.deepEqual(handles(season), ["bo", "ana"]);
+  const rows = seasonBoard(entries, "2026-10-27", undefined, eight);
+  assert.deepEqual(handles(rows), ["ana", "bo"], "eight weeks reach back to September");
+  assert.equal(rows[0].filled, 3);
+  assert.equal(rows[0].prs, 3);
+  assert.equal(rows[0].weeks.length, 8);
+});
+
+test("the weeks counted travel in the address, the season left out", () => {
+  assert.equal(readActivityFilters(new URLSearchParams("weeks=4")).weeks, "4");
+  assert.equal(readActivityFilters(new URLSearchParams("weeks=52")).weeks, "season");
+  assert.equal(activityPath({ weeks: "8", place: "local" }), "/?place=local&weeks=8");
+  assert.equal(activityPath({ weeks: "season" }), "/");
+  assert.equal(leaderboardPath("all", "season"), "/leaderboard");
+  assert.equal(leaderboardPath("global", "4"), "/leaderboard?place=global&weeks=4");
 });
 
 test("the board's period is no longer in the address", () => {

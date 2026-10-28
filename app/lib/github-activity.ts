@@ -362,9 +362,32 @@ export function seasonLabel(season: Season, locale: "id" | "en"): string {
   return `${months[season.quarter - 1]} ${season.year}`;
 }
 
+/**
+ * The weeks a board counts: the season's, or the last four or eight up to
+ * this one, which roll on every Monday instead of starting again each quarter.
+ * The Edge Function keeps PULL_REQUEST_DAYS of pull requests, enough for
+ * either.
+ */
+export const BOARD_SPANS = ["4", "8", "season"] as const;
+export type BoardSpan = (typeof BOARD_SPANS)[number];
+
+export function isBoardSpan(value: string): value is BoardSpan {
+  return (BOARD_SPANS as readonly string[]).includes(value);
+}
+
+/** The Mondays of a board's weeks, oldest first, and which one is this week. */
+export type BoardWindow = { weeks: string[]; current: number };
+
+export function boardWindow(today: string, span: BoardSpan): BoardWindow {
+  if (span === "season") return seasonOf(today);
+  const count = Number(span);
+  const thisWeek = weekStart(today);
+  return { weeks: Array.from({ length: count }, (_, index) => addWeeks(thisWeek, index - count + 1)), current: count - 1 };
+}
+
 export type ConsistencyRow = {
   person: ActivityPerson;
-  /** Each week of the season, oldest first: whether a pull request was opened in it. Weeks still to come are false. */
+  /** Each week of the board, oldest first: whether a pull request was opened in it. Weeks still to come are false. */
   weeks: boolean[];
   /** How many of them did. */
   filled: number;
@@ -379,14 +402,19 @@ export type ConsistencyRow = {
  * counts when a pull request to somebody else's repository was opened in it,
  * in review or merged. One closed without merging never counts: the Edge
  * Function drops it. Weeks run Monday to Sunday in WIB, where the members
- * live, and the board is the season's (see `Season`).
+ * live, and the board is the season's (see `Season`), or the last few weeks'
+(see `boardWindow`).
  *
  * Ranked by weeks filled, then the streak, then repos reached, then pull
  * requests. Volume only breaks ties: splitting one change into five pull
  * requests earns nothing (#186).
  */
-export function seasonBoard(entries: GitHubActivityEntry[], today: string, timeZone = "Asia/Jakarta"): ConsistencyRow[] {
-  const season = seasonOf(today);
+export function seasonBoard(
+  entries: GitHubActivityEntry[],
+  today: string,
+  timeZone = "Asia/Jakarta",
+  season: BoardWindow = seasonOf(today),
+): ConsistencyRow[] {
   const slot = new Map(season.weeks.map((week, index) => [week, index]));
 
   const byHandle = new Map<string, { person: ActivityPerson; active: Set<string>; repos: Set<string>; prs: number }>();
@@ -399,8 +427,8 @@ export function seasonBoard(entries: GitHubActivityEntry[], today: string, timeZ
       const row = byHandle.get(key) ?? { person: entry.person, active: new Set<string>(), repos: new Set<string>(), prs: 0 };
       const week = weekStart(opened);
       row.active.add(week);
-      // Repos and pull requests are the season's, like the weeks; the streak
-      // looks further back.
+      // Repos and pull requests are the board's weeks', like the weeks; the
+      // streak looks further back.
       if (slot.has(week)) {
         row.repos.add(entry.repo);
         row.prs += 1;

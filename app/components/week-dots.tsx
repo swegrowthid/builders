@@ -1,8 +1,8 @@
-import type { Season } from "../lib/github-activity";
+import type { BoardSpan, BoardWindow } from "../lib/github-activity";
 import { tx, type Locale } from "../lib/locale";
 
 /**
- * The season's weeks as dots, oldest first: filled when a PR was opened in it,
+ * A board's weeks as dots, oldest first: filled when a PR was opened in it,
  * this week ringed, the weeks still to come faint.
  */
 export function WeekDots({ weeks, current, locale }: { weeks: boolean[]; current: number; locale: Locale }) {
@@ -13,8 +13,8 @@ export function WeekDots({ weeks, current, locale }: { weeks: boolean[]; current
       role="img"
       aria-label={tx(
         locale,
-        `${filled} dari ${current + 1} minggu musim ini ada PR`,
-        `${filled} of this season's ${current + 1} weeks so far had a PR`,
+        `${filled} dari ${current + 1} minggu ada PR`,
+        `${filled} of ${current + 1} weeks so far had a PR`,
       )}
     >
       {weeks.map((on, index) => (
@@ -25,13 +25,13 @@ export function WeekDots({ weeks, current, locale }: { weeks: boolean[]; current
 }
 
 /**
- * An ⓘ that explains the season's numbers — "4/4", 🔥, the dots — on hover,
+ * An ⓘ that explains a board's numbers — "4/4", 🔥, the dots — on hover,
  * or on focus for a keyboard or a tap. Plain CSS (.info-tip), so it works
  * before the script does.
  */
-export function SeasonInfo({ season, locale }: { season: Season; locale: Locale }) {
-  const soFar = season.current + 1;
-  const total = season.weeks.length;
+export function BoardInfo({ weeks, span, locale }: { weeks: BoardWindow; span: BoardSpan; locale: Locale }) {
+  const soFar = weeks.current + 1;
+  const total = weeks.weeks.length;
   return (
     <span className="info-tip">
       <button type="button" className="info-tip-icon" aria-label={tx(locale, "Cara membaca skor", "How to read the scores")}>
@@ -41,24 +41,52 @@ export function SeasonInfo({ season, locale }: { season: Season; locale: Locale 
         {locale === "id" ? (
           <>
             <b>x/{soFar}</b>{" "}
-            = minggu yang ada PR-nya, dari {soFar} minggu musim ini yang sudah berjalan (musim ini {total} minggu). {soFar}/{soFar} berarti
-            belum pernah absen.
+            {span === "season"
+              ? `= minggu yang ada PR-nya, dari ${soFar} minggu musim ini yang sudah berjalan (musim ini ${total} minggu).`
+              : `= minggu yang ada PR-nya, dari ${total} minggu terakhir termasuk minggu ini.`}{" "}
+            {soFar}/{soFar} berarti nggak pernah absen.
             <br />
             <b>🔥</b> = streak, minggu berturut-turut ada PR.
             <br />
-            <b>Titik</b> = minggu-minggu musim ini; yang berbingkai minggu ini, yang pudar belum tiba.
+            <b>Titik</b> = {span === "season" ? "minggu-minggu musim ini" : `${total} minggu terakhir`}; yang berbingkai minggu ini
+            {span === "season" ? ", yang pudar belum tiba" : ""}.
           </>
         ) : (
           <>
-            <b>x/{soFar}</b>{" "}= weeks with a PR, out of the season&apos;s {soFar} weeks so far (it has {total}). {soFar}/{soFar} means not
-            a week missed.
+            <b>x/{soFar}</b>{" "}
+            {span === "season"
+              ? `= weeks with a PR, out of the season's ${soFar} weeks so far (it has ${total}).`
+              : `= weeks with a PR, out of the last ${total} weeks, this one included.`}{" "}
+            {soFar}/{soFar} means not a week missed.
             <br />
             <b>🔥</b> = streak, weeks in a row with a PR.
             <br />
-            <b>Dots</b> = the season&apos;s weeks; the ringed one is this week, the faint ones are still to come.
+            <b>Dots</b> = {span === "season" ? "the season's weeks" : `the last ${total} weeks`}; the ringed one is this week
+            {span === "season" ? ", the faint ones are still to come" : ""}.
           </>
         )}
       </span>
     </span>
+  );
+}
+
+/**
+ * Who has already filled this week, so nobody has to scan the dots for it:
+ * a few names, then how many more.
+ */
+export function ThisWeek({ names, locale, className }: { names: string[]; locale: Locale; className: string }) {
+  const shown = names.slice(0, 3);
+  const more = names.length - shown.length;
+  return (
+    <p className={className}>
+      {names.length === 0 ? (
+        tx(locale, "Minggu ini belum ada yang PR. Jadilah yang pertama!", "Nobody has a PR this week yet. Be the first!")
+      ) : (
+        <>
+          <span aria-hidden="true">✓</span> {tx(locale, "Minggu ini sudah PR:", "PR'd this week:")} <strong>{shown.join(", ")}</strong>
+          {more > 0 ? tx(locale, ` +${more} lainnya`, ` +${more} more`) : ""}
+        </>
+      )}
+    </p>
   );
 }

@@ -8,6 +8,7 @@ import { RelativeTime } from "./relative-time";
 import { ReactionBar } from "./reaction-bar";
 import {
   activityPath,
+  leaderboardPath,
   isShowOption,
   readActivityFilters,
   readActivityPage,
@@ -33,11 +34,16 @@ import {
   repoName,
   scopeCounts,
   ACTIVITY_PLACES,
+  BOARD_SPANS,
   SUMMARY_DAYS,
+  boardWindow,
+  isBoardSpan,
   seasonBoard,
   seasonLabel,
   seasonOf,
   type ActivityPlace,
+  type BoardSpan,
+  type BoardWindow,
   type CommitSummaryEntry,
   type ConsistencyRow,
   type GitHubActivityEntry,
@@ -49,7 +55,7 @@ import {
 } from "../lib/github-activity";
 import type { ReactionCount } from "../lib/reactions";
 import { tx, type Locale } from "../lib/locale";
-import { SeasonInfo, WeekDots } from "./week-dots";
+import { BoardInfo, ThisWeek, WeekDots } from "./week-dots";
 
 const PAGE_SIZE = 20;
 /** Repositories shown under the leaderboard before "See all": a handful, not the list. */
@@ -147,11 +153,15 @@ export function ActivityView({
   // people's repos, in the place showing. It does not follow the kind the feed
   // shows — a week counts the same whatever the feed is narrowed to.
   const ownBoard = current.scope === "own" || current.kind === "commits";
-  const board = useMemo<Board>(
-    () => (ownBoard ? { own: true, rows: ownLeaderboard(entries) } : { own: false, rows: seasonBoard(inPlace(entries, place, local), today) }),
-    [entries, ownBoard, place, local, today],
-  );
   const season = useMemo(() => seasonOf(today), [today]);
+  const boardWeeks = useMemo(() => boardWindow(today, current.weeks), [today, current.weeks]);
+  const board = useMemo<Board>(
+    () =>
+      ownBoard
+        ? { own: true, rows: ownLeaderboard(entries) }
+        : { own: false, rows: seasonBoard(inPlace(entries, place, local), today, undefined, boardWeeks) },
+    [entries, ownBoard, place, local, today, boardWeeks],
+  );
   const matched = useMemo(
     () => queryActivity(scoped, current),
     [scoped, current.kind, current.member, current.repo, current.q], // eslint-disable-line react-hooks/exhaustive-deps
@@ -196,6 +206,7 @@ export function ActivityView({
           <Leaderboard
             board={board}
             season={season}
+            boardWeeks={boardWeeks}
             current={current}
             places={current.scope !== "own" && local.size > 0 ? places : null}
             viewerHandle={viewerHandle}
@@ -474,6 +485,7 @@ type Board = { own: false; rows: ConsistencyRow[] } | { own: true; rows: Leaderb
 function Leaderboard({
   board,
   season,
+  boardWeeks,
   current,
   places,
   viewerHandle,
@@ -482,6 +494,8 @@ function Leaderboard({
 }: {
   board: Board;
   season: Season;
+  /** The weeks the board counts: the season's, or the last four or eight. */
+  boardWeeks: BoardWindow;
   current: ActivityFilters;
   /** Moves the page to another address without a reload: the pill's choices. */
   navigate: (href: string) => void;
@@ -501,13 +515,18 @@ function Leaderboard({
     local: tx(locale, "repo lokal", "local repos"),
     global: tx(locale, "repo global", "global repos"),
   };
+  const spanLabels: Record<BoardSpan, string> = {
+    "4": tx(locale, "4 minggu terakhir", "last 4 weeks"),
+    "8": tx(locale, "8 minggu terakhir", "last 8 weeks"),
+    season: tx(locale, `musim ${seasonLabel(season, "id")}`, `season ${seasonLabel(season, "en")}`),
+  };
   const score = (index: number) => {
     if (board.own) {
       const { prs, repos } = board.rows[index];
       return { main: `${prs} PR`, side: tx(locale, `${repos} repo`, `${repos} ${repos === 1 ? "repo" : "repos"}`) };
     }
     const { filled, streak } = board.rows[index];
-    return { main: `${filled}/${season.current + 1}`, side: streak > 0 ? `🔥 ${streak}` : "" };
+    return { main: `${filled}/${boardWeeks.current + 1}`, side: streak > 0 ? `🔥 ${streak}` : "" };
   };
 
   return (
@@ -515,7 +534,7 @@ function Leaderboard({
       <div className="ax-board-head">
         <h2 id="board-title">
           <span aria-hidden="true">🏆</span> {own ? "Leaderboard" : "Weeks of contribution"}
-          {own ? null : <SeasonInfo season={season} locale={locale} />}
+          {own ? null : <BoardInfo weeks={boardWeeks} span={current.weeks} locale={locale} />}
         </h2>
         {/* The board's choices read as one line under its name — "season
             Oct–Dec 2026 · all repos" — the place a pill that opens a native picker.
@@ -533,7 +552,24 @@ function Leaderboard({
             {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
             {current.repo ? <input type="hidden" name="repo" value={current.repo} /> : null}
             {current.q ? <input type="hidden" name="q" value={current.q} /> : null}
-            <span className="ax-pill">{tx(locale, `Musim ${seasonLabel(season, "id")}`, `Season ${seasonLabel(season, "en")}`)}</span>
+            <label>
+              <span className="sr-only">{tx(locale, "Minggu yang dihitung", "Weeks counted")}</span>
+              <select
+                name="weeks"
+                className={`ax-pill ${current.weeks !== "season" ? "is-set" : ""}`}
+                value={current.weeks}
+                onChange={(event) => {
+                  const weeks = event.target.value;
+                  navigate(activityPath({ ...current, weeks: isBoardSpan(weeks) ? weeks : "season" }));
+                }}
+              >
+                {BOARD_SPANS.map((span) => (
+                  <option key={span} value={span}>
+                    {spanLabels[span]}
+                  </option>
+                ))}
+              </select>
+            </label>
             {places ? (
               <>
                 <span aria-hidden="true">·</span>
@@ -554,11 +590,11 @@ function Leaderboard({
                     ))}
                   </select>
                 </label>
-                <noscript>
-                  <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
-                </noscript>
               </>
             ) : null}
+            <noscript>
+              <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
+            </noscript>
           </form>
         )}
       </div>
@@ -569,8 +605,12 @@ function Leaderboard({
             ? tx(locale, `Belum ada PR merged ke repo sendiri dalam ${SUMMARY_DAYS} hari terakhir.`, `No PRs merged into members' own repos in the last ${SUMMARY_DAYS} days.`)
             : tx(
                 locale,
-                "Belum ada PR musim ini. Satu PR minggu ini sudah cukup untuk mulai!",
-                "No PRs this season yet. One PR this week is enough to start!",
+                current.weeks === "season"
+                  ? "Belum ada PR musim ini. Satu PR minggu ini sudah cukup untuk mulai!"
+                  : `Belum ada PR dalam ${current.weeks} minggu terakhir. Satu PR minggu ini sudah cukup untuk mulai!`,
+                current.weeks === "season"
+                  ? "No PRs this season yet. One PR this week is enough to start!"
+                  : `No PRs in the last ${current.weeks} weeks. One PR this week is enough to start!`,
               )}
         </p>
       ) : (
@@ -592,7 +632,7 @@ function Leaderboard({
                   <Avatar handle={person.handle} size={24} />
                   <span className="ax-board-who">
                     <span className="ax-board-name">{person.name || `@${person.handle}`}</span>
-                    {board.own ? null : <WeekDots weeks={board.rows[index].weeks} current={season.current} locale={locale} />}
+                    {board.own ? null : <WeekDots weeks={board.rows[index].weeks} current={boardWeeks.current} locale={locale} />}
                   </span>
                   <span className="ax-board-score">
                     <strong>{main}</strong>
@@ -603,6 +643,14 @@ function Leaderboard({
             );
           })}
         </ol>
+      )}
+
+      {own ? null : (
+        <ThisWeek
+          className="ax-board-week"
+          names={(board.rows as ConsistencyRow[]).filter(({ weeks }) => weeks[boardWeeks.current]).map(({ person }) => person.name || `@${person.handle}`)}
+          locale={locale}
+        />
       )}
 
       {viewerRank >= BOARD_SHOWN_PHONE && (!own || !expanded) ? (
@@ -628,7 +676,7 @@ function Leaderboard({
           : countedLabel(current, locale)}
         {/* A plain Link: it leaves this page, where InstantLink only swaps
             the feed's filters in place. */}
-        <Link href={current.place === "all" || own ? "/leaderboard" : `/leaderboard?place=${current.place}`}>
+        <Link href={own ? "/leaderboard" : leaderboardPath(current.place, current.weeks)}>
           {own
             ? tx(locale, "Leaderboard musim ini", "This season's leaderboard")
             : tx(locale, `Leaderboard lengkap (${board.rows.length})`, `Full leaderboard (${board.rows.length})`)}{" "}

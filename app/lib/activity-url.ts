@@ -1,10 +1,12 @@
 import {
   isActivityPlace,
+  isBoardSpan,
   isActivityScope,
   isGitHubActivityFilter,
   type ActivityPlace,
   type ActivityQuery,
   type ActivityScope,
+  type BoardSpan,
 } from "./github-activity";
 
 /**
@@ -14,7 +16,7 @@ import {
  * the same arrangement as directory-url.ts.
  */
 
-export type ActivityFilters = ActivityQuery & { scope: ActivityScope; place: ActivityPlace };
+export type ActivityFilters = ActivityQuery & { scope: ActivityScope; place: ActivityPlace; weeks: BoardSpan };
 
 type Query = Record<string, string | string[] | undefined> | URLSearchParams;
 
@@ -43,11 +45,14 @@ export function readActivityFilters(query: Query): ActivityFilters {
   const member = read(query, "member").trim();
   const repo = read(query, "repo").trim().toLowerCase();
   const place = read(query, "place");
+  const weeks = read(query, "weeks");
   return {
     // Contributions unless asked otherwise: what the page is for.
     scope,
     // Local or global repositories; both unless asked.
     place: isActivityPlace(place) ? place : "all",
+    // The leaderboard's weeks: the season unless asked.
+    weeks: isBoardSpan(weeks) ? weeks : "season",
     kind,
     member: HANDLE.test(member) ? member : "",
     repo: REPO_KEY.test(repo) ? repo : "",
@@ -66,6 +71,7 @@ export function activityPath(filters: Partial<ActivityFilters>, page = 1): strin
   const params = new URLSearchParams();
   if (filters.scope && filters.scope !== "external") params.set("scope", filters.scope);
   if (filters.place && filters.place !== "all") params.set("place", filters.place);
+  if (filters.weeks && filters.weeks !== "season") params.set("weeks", filters.weeks);
   if (filters.kind && filters.kind !== "all") params.set("show", filters.kind);
   if (filters.member) params.set("member", filters.member);
   if (filters.repo) params.set("repo", filters.repo);
@@ -73,6 +79,15 @@ export function activityPath(filters: Partial<ActivityFilters>, page = 1): strin
   if (page > 1) params.set("page", String(page));
   const search = params.toString();
   return `/${search ? `?${search}` : ""}`;
+}
+
+/** /leaderboard for a place and the weeks counted, so the home board's link keeps both. */
+export function leaderboardPath(place: ActivityPlace, weeks: BoardSpan): string {
+  const params = new URLSearchParams();
+  if (place !== "all") params.set("place", place);
+  if (weeks !== "season") params.set("weeks", weeks);
+  const search = params.toString();
+  return `/leaderboard${search ? `?${search}` : ""}`;
 }
 
 /**

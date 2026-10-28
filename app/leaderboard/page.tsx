@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "@/app/components/responsive-link";
 import { SiteFooter, SiteHeader } from "../components/shell";
 import { Skeleton } from "../components/skeleton";
-import { SeasonInfo, WeekDots } from "../components/week-dots";
+import { BoardInfo, ThisWeek, WeekDots } from "../components/week-dots";
 import { leaderboardIssueUrl, shareCard } from "../content";
 import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
@@ -14,18 +14,24 @@ import { localRepos } from "../lib/directory-read";
 import { readPublicly } from "../lib/public-read";
 import { currentViewer } from "../lib/session";
 import { githubHandle } from "../lib/oss";
+import { leaderboardPath } from "../lib/activity-url";
 import {
   ACTIVITY_PLACES,
+  BOARD_SPANS,
   MILESTONES,
+  boardWindow,
   dayKey,
   inPlace,
   isActivityPlace,
+  isBoardSpan,
   milestoneWeeks,
   nextMilestone,
   seasonBoard,
   seasonLabel,
   seasonOf,
   type ActivityPlace,
+  type BoardSpan,
+  type BoardWindow,
   type ConsistencyRow,
   type GitHubActivityEntry,
   type Season,
@@ -130,8 +136,11 @@ async function LeaderboardBody({ query, locale }: { query: SearchParams; locale:
   // Today in WIB is read per request, not frozen into the prerendered shell.
   await connection();
   const asked = typeof values.place === "string" ? values.place : "";
+  const askedWeeks = typeof values.weeks === "string" ? values.weeks : "";
+  const span: BoardSpan = isBoardSpan(askedWeeks) ? askedWeeks : "season";
   const today = dayKey(new Date(), "Asia/Jakarta");
   const season = seasonOf(today);
+  const boardWeeks = boardWindow(today, span);
   const [result, viewer, local] = await Promise.all([
     readPublicly<GitHubActivityEntry[]>("github activity for the leaderboard", listGitHubActivity, []),
     currentViewer(),
@@ -140,8 +149,10 @@ async function LeaderboardBody({ query, locale }: { query: SearchParams; locale:
   const localSet = new Set(local);
   // Local or global only when the directory knows which repos are local.
   const place: ActivityPlace = local.length > 0 && isActivityPlace(asked) ? asked : "all";
+  // The member's card and the milestones are always the season's; the board
+  // follows the weeks asked for.
   const everywhere = seasonBoard(result.value, today);
-  const rows = place === "all" ? everywhere : seasonBoard(inPlace(result.value, place, localSet), today);
+  const rows = place === "all" && span === "season" ? everywhere : seasonBoard(inPlace(result.value, place, localSet), today, undefined, boardWeeks);
 
   const viewerHandle = viewer?.githubActivityShown ? githubHandle(viewer.github) : "";
   const viewerKey = viewerHandle.toLowerCase();
@@ -189,18 +200,35 @@ async function LeaderboardBody({ query, locale }: { query: SearchParams; locale:
       <section className="ab-section" aria-labelledby="board-title">
         <div className="lb-board-head">
           <h2 id="board-title">
-            {tx(locale, "Papan musim ini", "This season's board")} <SeasonInfo season={season} locale={locale} />
+            {span === "season" ? tx(locale, "Papan musim ini", "This season's board") : tx(locale, `Papan ${span} minggu terakhir`, `The last ${span} weeks`)}{" "}
+            <BoardInfo weeks={boardWeeks} span={span} locale={locale} />
           </h2>
-          {local.length > 0 ? <PlacePills place={place} locale={locale} /> : null}
+          <div className="lb-choices">
+            <SpanPills place={place} span={span} locale={locale} />
+            {local.length > 0 ? <PlacePills place={place} span={span} locale={locale} /> : null}
+          </div>
         </div>
+        {result.unavailable ? null : (
+          <ThisWeek
+            className="lb-note lb-week"
+            names={rows.filter(({ weeks }) => weeks[boardWeeks.current]).map(({ person }) => person.name || `@${person.handle}`)}
+            locale={locale}
+          />
+        )}
         {result.unavailable ? (
           <p className="lb-note">{tx(locale, "Data aktivitas sedang tidak bisa dibaca. Coba lagi sebentar.", "The activity could not be read just now. Try again shortly.")}</p>
         ) : rows.length === 0 ? (
           <p className="lb-note">
-            {tx(locale, "Belum ada PR musim ini. Satu PR minggu ini sudah cukup untuk jadi yang pertama!", "No PRs this season yet. One PR this week is enough to be the first!")}
+            {span === "season"
+              ? tx(locale, "Belum ada PR musim ini. Satu PR minggu ini sudah cukup untuk jadi yang pertama!", "No PRs this season yet. One PR this week is enough to be the first!")
+              : tx(
+                  locale,
+                  `Belum ada PR dalam ${span} minggu terakhir. Satu PR minggu ini sudah cukup untuk jadi yang pertama!`,
+                  `No PRs in the last ${span} weeks. One PR this week is enough to be the first!`,
+                )}
           </p>
         ) : (
-          <SeasonTable rows={rows} season={season} viewerKey={viewerKey} locale={locale} />
+          <SeasonTable rows={rows} season={season} boardWeeks={boardWeeks} milestones={span === "season"} viewerKey={viewerKey} locale={locale} />
         )}
         <p className="lb-note">
           {tx(
@@ -269,7 +297,7 @@ function YourSeason({
   return (
     <section className={`lb-you ${thisWeek ? "is-done" : ""}`} aria-labelledby="you-title">
       <h2 id="you-title">
-        {tx(locale, "Progresmu musim ini", "Your season so far")} <SeasonInfo season={season} locale={locale} />
+        {tx(locale, "Progresmu musim ini", "Your season so far")} <BoardInfo weeks={season} span="season" locale={locale} />
       </h2>
       <WeekDots weeks={weeks} current={season.current} locale={locale} />
       <dl className="lb-you-stats">
@@ -311,8 +339,32 @@ function YourSeason({
   );
 }
 
+/** The weeks the board counts: plain links, like the places. */
+function SpanPills({ place, span, locale }: { place: ActivityPlace; span: BoardSpan; locale: Locale }) {
+  const labels: Record<BoardSpan, string> = {
+    "4": tx(locale, "4 minggu", "4 weeks"),
+    "8": tx(locale, "8 minggu", "8 weeks"),
+    season: tx(locale, "Musim ini", "This season"),
+  };
+  return (
+    <nav className="lb-places" aria-label={tx(locale, "Minggu yang dihitung", "Weeks counted")}>
+      {BOARD_SPANS.map((option) => (
+        <Link
+          key={option}
+          className={`lb-place ${option === span ? "is-set" : ""}`}
+          href={leaderboardPath(place, option)}
+          aria-current={option === span ? "true" : undefined}
+          scroll={false}
+        >
+          {labels[option]}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 /** All repos, local or global: plain links, so the choice works without a script. */
-function PlacePills({ place, locale }: { place: ActivityPlace; locale: Locale }) {
+function PlacePills({ place, span, locale }: { place: ActivityPlace; span: BoardSpan; locale: Locale }) {
   const labels: Record<ActivityPlace, string> = {
     all: tx(locale, "Semua repo", "All repos"),
     local: tx(locale, "Repo lokal", "Local repos"),
@@ -324,7 +376,7 @@ function PlacePills({ place, locale }: { place: ActivityPlace; locale: Locale })
         <Link
           key={option}
           className={`lb-place ${option === place ? "is-set" : ""}`}
-          href={option === "all" ? "/leaderboard" : `/leaderboard?place=${option}`}
+          href={leaderboardPath(option, span)}
           aria-current={option === place ? "true" : undefined}
           scroll={false}
         >
@@ -335,7 +387,22 @@ function PlacePills({ place, locale }: { place: ActivityPlace; locale: Locale })
   );
 }
 
-function SeasonTable({ rows, season, viewerKey, locale }: { rows: ConsistencyRow[]; season: Season; viewerKey: string; locale: Locale }) {
+function SeasonTable({
+  rows,
+  season,
+  boardWeeks,
+  milestones,
+  viewerKey,
+  locale,
+}: {
+  rows: ConsistencyRow[];
+  season: Season;
+  boardWeeks: BoardWindow;
+  /** Milestones are the season's: shown only on its board. */
+  milestones: boolean;
+  viewerKey: string;
+  locale: Locale;
+}) {
   return (
     <div className="lb-table">
       <table className="lb-board">
@@ -345,7 +412,7 @@ function SeasonTable({ rows, season, viewerKey, locale }: { rows: ConsistencyRow
             <th>{tx(locale, "Member", "Member")}</th>
             <th>{tx(locale, "Minggu", "Weeks")}</th>
             <th>Streak</th>
-            <th className="lb-wide">Milestone</th>
+            {milestones ? <th className="lb-wide">Milestone</th> : null}
             <th className="lb-wide">Repo</th>
             <th className="lb-wide">PR</th>
           </tr>
@@ -359,18 +426,20 @@ function SeasonTable({ rows, season, viewerKey, locale }: { rows: ConsistencyRow
                 <img className="lb-avatar" src={`https://github.com/${encodeURIComponent(person.handle)}.png?size=56`} alt="" width={28} height={28} />
                 <span className="lb-who">
                   <Link href={`/u/${encodeURIComponent(person.username)}`}>{person.name || `@${person.handle}`}</Link>
-                  <WeekDots weeks={weeks} current={season.current} locale={locale} />
+                  <WeekDots weeks={weeks} current={boardWeeks.current} locale={locale} />
                 </span>
               </td>
               <td className="lb-points">
-                {filled}/{season.current + 1}
+                {filled}/{boardWeeks.current + 1}
               </td>
               <td>{streak > 0 ? `🔥 ${streak}` : "—"}</td>
-              <td className="lb-wide">
-                {MILESTONES.filter((milestone) => filled >= milestoneWeeks(milestone, season))
-                  .map((milestone) => milestone.icon)
-                  .join("") || "—"}
-              </td>
+              {milestones ? (
+                <td className="lb-wide">
+                  {MILESTONES.filter((milestone) => filled >= milestoneWeeks(milestone, season))
+                    .map((milestone) => milestone.icon)
+                    .join("") || "—"}
+                </td>
+              ) : null}
               <td className="lb-wide">{repos}</td>
               <td className="lb-wide">{prs}</td>
             </tr>
