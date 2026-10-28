@@ -510,28 +510,14 @@ function Leaderboard({
   return (
     <aside className="ax-board tone-done" aria-labelledby="board-title">
       <div className="ax-board-head">
-        <div className="ax-board-title">
-          <h2 id="board-title">
-            <span aria-hidden="true">🏆</span> Weeks of contribution
-            <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
-          </h2>
-          {/* Which PRs fill a week, as the feed draws them: every one opened
-              (green), or only the merged (purple). One button showing the
-              count in use; pressing it switches to the other. A link, so it
-              works before the script does. */}
-          <InstantLink
-            className="ax-count"
-            href={activityPath({ ...current, count: choice.count === "merged" ? "opened" : "merged" })}
-            aria-label={countName}
-            title={countName}
-          >
-            <PullRequestIcon merged={choice.count === "merged"} />
-          </InstantLink>
-        </div>
-        {/* The board's choices read as one line under its name — "season
-            Oct–Dec 2026 · all repos" — each a pill that opens a native picker;
-            what it counts follows the feed's "show" choice, named here when it
-            is not the usual. A real GET form, so it works before the script does. */}
+        <h2 id="board-title">
+          <span aria-hidden="true">🏆</span> Weeks of contribution
+          <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
+        </h2>
+        {/* The board's choices in one row under its name: the weeks and
+            place pills that open a native picker, and the PR button; "own
+            repos" is named when the feed's choice set it. A real GET form,
+            so it works before the script does. */}
         <form className="ax-board-pills" action="/">
           {current.scope !== "external" ? <input type="hidden" name="scope" value={current.scope} /> : null}
           {current.kind !== "all" ? <input type="hidden" name="show" value={current.kind} /> : null}
@@ -558,33 +544,37 @@ function Leaderboard({
             </select>
           </label>
           {places && choice.of === "external" ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <label>
-                <span className="sr-only">{tx(locale, "Repo lokal atau global", "Local or global repos")}</span>
-                <select
-                  name="place"
-                  className={`ax-pill ${current.place !== "all" ? "is-set" : ""}`}
-                  value={current.place}
-                  onChange={(event) =>
-                    navigate(activityPath({ ...current, place: ACTIVITY_PLACES.find((place) => place === event.target.value) ?? "all" }))
-                  }
-                >
-                  {ACTIVITY_PLACES.map((place) => (
-                    <option key={place} value={place}>
-                      {placeLabels[place]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
+            <label>
+              <span className="sr-only">{tx(locale, "Repo lokal atau global", "Local or global repos")}</span>
+              <select
+                name="place"
+                className={`ax-pill ${current.place !== "all" ? "is-set" : ""}`}
+                value={current.place}
+                onChange={(event) =>
+                  navigate(activityPath({ ...current, place: ACTIVITY_PLACES.find((place) => place === event.target.value) ?? "all" }))
+                }
+              >
+                {ACTIVITY_PLACES.map((place) => (
+                  <option key={place} value={place}>
+                    {placeLabels[place]}
+                  </option>
+                ))}
+              </select>
+            </label>
           ) : null}
-          {choice.of === "own" ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className="ax-pill is-set">{tx(locale, "repo sendiri", "own repos")}</span>
-            </>
-          ) : null}
+          {choice.of === "own" ? <span className="ax-pill is-set">{tx(locale, "repo sendiri", "own repos")}</span> : null}
+          {/* Which PRs fill a week, as the feed draws them: every one opened
+              (green), or only the merged (purple). One button showing the
+              count in use; pressing it switches to the other. A link, so it
+              works before the script does. */}
+          <InstantLink
+            className="ax-count"
+            href={activityPath({ ...current, count: choice.count === "merged" ? "opened" : "merged" })}
+            aria-label={countName}
+            title={countName}
+          >
+            <PullRequestIcon merged={choice.count === "merged"} />
+          </InstantLink>
           <noscript>
             <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
           </noscript>

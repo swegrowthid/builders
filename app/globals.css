@@ -1652,13 +1652,11 @@ form button[aria-busy="true"]::after,
 .ax-board select.ax-pill.is-set {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236639ba' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
 }
-/* The title, and beside it which PRs count. */
-.ax-board-title { align-items: center; display: flex; gap: 8px; }
 /* Which PRs fill a week: one round button on white, its PR icon in the
    feed's colours — green for every PR opened, purple for merged only. */
 .ax-board .ax-count {
   align-items: center; background-color: light-dark(#ffffff, #ffffff); border-radius: 99px; display: inline-flex; flex: none; height: 28px;
-  justify-content: center; margin-left: auto; width: 28px;
+  justify-content: center; width: 28px;
 }
 .ax-board .ax-count:hover { box-shadow: 0 0 0 3px light-dark(rgba(255, 255, 255, .3), rgba(255, 255, 255, .3)); }
 .ax-board .ax-count .ax-pr-icon.is-open { color: light-dark(#1a7f37, #1a7f37); }
