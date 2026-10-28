@@ -160,11 +160,12 @@ test("the board's period is no longer in the address", () => {
   assert.equal("board" in readActivityFilters(new URLSearchParams("board=week")), false);
 });
 
-test("the home board follows the feed's choice: own repos, and merged only", () => {
+test("the home board follows the feed's own repos, and counts merged PRs only when asked", () => {
   const read = (search) => boardChoice(readActivityFilters(new URLSearchParams(search)));
   assert.deepEqual(read(""), { of: "external", count: "opened", weeks: "season", place: "all" });
-  assert.deepEqual(read("show=merged&place=local&weeks=8"), { of: "external", count: "merged", weeks: "8", place: "local" });
-  assert.deepEqual(read("show=open"), { of: "external", count: "opened", weeks: "season", place: "all" }, "in review alone is not a board");
+  assert.deepEqual(read("count=merged&place=local&weeks=8"), { of: "external", count: "merged", weeks: "8", place: "local" });
+  assert.deepEqual(read("show=merged"), { of: "external", count: "opened", weeks: "season", place: "all" }, "the feed's kind is its own");
+  assert.equal(activityPath({ count: "merged" }), "/?count=merged");
   assert.deepEqual(read("scope=own&place=local"), { of: "own", count: "opened", weeks: "season", place: "all" });
 });
 

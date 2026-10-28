@@ -35,6 +35,7 @@ import {
   repoName,
   scopeCounts,
   ACTIVITY_PLACES,
+  BOARD_COUNTS,
   BOARD_SPANS,
   boardEntries,
   SUMMARY_DAYS,
@@ -153,9 +154,9 @@ export function ActivityView({
   // Everything else narrows within the scope and place showing.
   const scoped = useMemo(() => inPlace(inThisScope, place, local), [inThisScope, place, local]);
   const people = useMemo(() => activityPeople(entries), [entries]);
-  // The board follows the feed's one choice: contributions, in the place
-  // showing, or — on Own repos — PRs to their own repos; every PR opened, or
-  // on Merged PRs only those merged (see `boardChoice`).
+  // The board counts contributions, in the place showing, or — on the feed's
+  // Own repos — PRs to their own repos; every PR opened, or only those merged
+  // (see `boardChoice`).
   const choice = boardChoice(current);
   const season = useMemo(() => seasonOf(today), [today]);
   const boardWeeks = useMemo(() => boardWindow(today, current.weeks), [today, current.weeks]);
@@ -512,10 +513,32 @@ function Leaderboard({
   return (
     <aside className="ax-board tone-done" aria-labelledby="board-title">
       <div className="ax-board-head">
-        <h2 id="board-title">
-          <span aria-hidden="true">🏆</span> Weeks of contribution
-          <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
-        </h2>
+        <div className="ax-board-title">
+          <h2 id="board-title">
+            <span aria-hidden="true">🏆</span> Weeks of contribution
+            <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
+          </h2>
+          {/* Which PRs fill a week, as the feed draws them: every one opened
+              (green), or only the merged (purple). Links, so they work before
+              the script does. */}
+          <span className="ax-count" role="group" aria-label={tx(locale, "PR yang dihitung", "PRs counted")}>
+            {BOARD_COUNTS.map((count) => {
+              const name = count === "merged" ? tx(locale, "Hanya PR merged", "Merged PRs only") : tx(locale, "Semua PR yang dibuka", "Every PR opened");
+              return (
+                <InstantLink
+                  key={count}
+                  href={activityPath({ ...current, count })}
+                  className={count === choice.count ? "is-set" : undefined}
+                  aria-current={count === choice.count ? "true" : undefined}
+                  aria-label={name}
+                  title={name}
+                >
+                  <PullRequestIcon merged={count === "merged"} />
+                </InstantLink>
+              );
+            })}
+          </span>
+        </div>
         {/* The board's choices read as one line under its name — "season
             Oct–Dec 2026 · all repos" — each a pill that opens a native picker;
             what it counts follows the feed's "show" choice, named here when it
@@ -526,6 +549,7 @@ function Leaderboard({
           {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
           {current.repo ? <input type="hidden" name="repo" value={current.repo} /> : null}
           {current.q ? <input type="hidden" name="q" value={current.q} /> : null}
+          {current.count !== "opened" ? <input type="hidden" name="count" value={current.count} /> : null}
           <label>
             <span className="sr-only">{tx(locale, "Minggu yang dihitung", "Weeks counted")}</span>
             <select
@@ -570,12 +594,6 @@ function Leaderboard({
             <>
               <span aria-hidden="true">·</span>
               <span className="ax-pill is-set">{tx(locale, "repo sendiri", "own repos")}</span>
-            </>
-          ) : null}
-          {choice.count === "merged" ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className="ax-pill is-set">{tx(locale, "merged saja", "merged only")}</span>
             </>
           ) : null}
           <noscript>

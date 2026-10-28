@@ -1652,6 +1652,17 @@ form button[aria-busy="true"]::after,
 .ax-board select.ax-pill.is-set {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236639ba' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
 }
+/* Which PRs fill a week: two PR icons in one pill, the chosen one on white
+   in the feed's colours, the other white on the purple. */
+.ax-board-title { align-items: center; display: flex; gap: 8px; }
+.ax-board .ax-count { margin-left: auto; }
+.ax-board .ax-count { background-color: light-dark(rgba(255, 255, 255, .18), rgba(255, 255, 255, .18)); border-radius: 99px; display: inline-flex; gap: 2px; padding: 2px; }
+.ax-board .ax-count a { align-items: center; border-radius: 99px; color: light-dark(#ffffff, #ffffff); display: inline-flex; height: 24px; justify-content: center; width: 30px; }
+.ax-board .ax-count a:hover { background-color: light-dark(rgba(255, 255, 255, .18), rgba(255, 255, 255, .18)); }
+.ax-board .ax-count a .ax-pr-icon { color: inherit; height: 14px; width: 14px; }
+.ax-board .ax-count a.is-set { background-color: light-dark(#ffffff, #ffffff); }
+.ax-board .ax-count a.is-set .ax-pr-icon.is-open { color: light-dark(#1a7f37, #1a7f37); }
+.ax-board .ax-count a.is-set .ax-pr-icon.is-merged { color: light-dark(#8250df, #8250df); }
 /* The native picker's own list keeps the page's colours, not white on white. */
 .ax-board select.ax-pill option { color: var(--dx-ink); }
 .ax-board-pills noscript button { background: var(--dx-soft); border: 0; border-radius: 99px; font-size: 12px; height: 28px; padding: 0 10px; }

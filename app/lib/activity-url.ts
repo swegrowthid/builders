@@ -1,5 +1,6 @@
 import {
   isActivityPlace,
+  isBoardCount,
   isBoardSpan,
   isActivityScope,
   isGitHubActivityFilter,
@@ -18,7 +19,7 @@ import {
  * the same arrangement as directory-url.ts.
  */
 
-export type ActivityFilters = ActivityQuery & { scope: ActivityScope; place: ActivityPlace; weeks: BoardSpan };
+export type ActivityFilters = ActivityQuery & { scope: ActivityScope; place: ActivityPlace; weeks: BoardSpan; count: BoardCount };
 
 type Query = Record<string, string | string[] | undefined> | URLSearchParams;
 
@@ -48,6 +49,7 @@ export function readActivityFilters(query: Query): ActivityFilters {
   const repo = read(query, "repo").trim().toLowerCase();
   const place = read(query, "place");
   const weeks = read(query, "weeks");
+  const count = read(query, "count");
   return {
     // Contributions unless asked otherwise: what the page is for.
     scope,
@@ -55,6 +57,8 @@ export function readActivityFilters(query: Query): ActivityFilters {
     place: isActivityPlace(place) ? place : "all",
     // The leaderboard's weeks: the season unless asked.
     weeks: isBoardSpan(weeks) ? weeks : "season",
+    // Which PRs fill the board's weeks: every one opened unless asked.
+    count: isBoardCount(count) ? count : "opened",
     kind,
     member: HANDLE.test(member) ? member : "",
     repo: REPO_KEY.test(repo) ? repo : "",
@@ -74,6 +78,7 @@ export function activityPath(filters: Partial<ActivityFilters>, page = 1): strin
   if (filters.scope && filters.scope !== "external") params.set("scope", filters.scope);
   if (filters.place && filters.place !== "all") params.set("place", filters.place);
   if (filters.weeks && filters.weeks !== "season") params.set("weeks", filters.weeks);
+  if (filters.count && filters.count !== "opened") params.set("count", filters.count);
   if (filters.kind && filters.kind !== "all") params.set("show", filters.kind);
   if (filters.member) params.set("member", filters.member);
   if (filters.repo) params.set("repo", filters.repo);
@@ -97,10 +102,10 @@ export function leaderboardPath({ of, count, weeks, place }: LeaderboardChoice):
   return `/leaderboard${search ? `?${search}` : ""}`;
 }
 
-/** The home board's choices, read off the feed's: "Own repos" counts their own, "Merged PRs" only merged ones. */
+/** The home board's choices: whose repos follows the feed's — "Own repos" counts their own — the rest are its own. */
 export function boardChoice(filters: ActivityFilters): LeaderboardChoice {
   const of = filters.scope === "own" || filters.kind === "commits" ? "own" : "external";
-  return { of, count: filters.kind === "merged" ? "merged" : "opened", weeks: filters.weeks, place: of === "own" ? "all" : filters.place };
+  return { of, count: filters.count, weeks: filters.weeks, place: of === "own" ? "all" : filters.place };
 }
 
 /**
