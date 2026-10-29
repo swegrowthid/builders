@@ -22,7 +22,7 @@ export function WeekDots({ weeks, current, slim = false, locale }: { weeks: bool
 }
 
 /**
- * An ⓘ that explains a board's numbers — "4/4", 🔥, the dots — on hover,
+ * An ⓘ that explains a board's numbers — "4/4", 🔥, the bar — on hover,
  * or on focus for a keyboard or a tap. Plain CSS (.info-tip), so it works
  * before the script does.
  */
@@ -32,6 +32,7 @@ export function BoardInfo({
   of = "external",
   count = "opened",
   places = false,
+  streak = true,
   locale,
 }: {
   weeks: BoardWindow;
@@ -40,6 +41,8 @@ export function BoardInfo({
   count?: BoardCount;
   /** Whether the board offers local or global, which the ⓘ then explains. */
   places?: boolean;
+  /** Whether the board shows the 🔥 streak, which the ⓘ then explains. */
+  streak?: boolean;
   locale: Locale;
 }) {
   const soFar = weeks.current + 1;
@@ -67,8 +70,12 @@ export function BoardInfo({
               ? `= minggu yang ada PR-nya, dari ${soFar} minggu musim ini yang sudah berjalan (musim ${months}, ${total} minggu).`
               : `= minggu yang ada PR-nya, dari ${total} minggu terakhir termasuk minggu ini.`}{" "}
             {soFar}/{soFar} berarti nggak pernah absen.
-            <br />
-            <b>🔥</b> = streak, minggu berturut-turut ada PR.
+            {streak ? (
+              <>
+                <br />
+                <b>🔥</b> = streak, minggu berturut-turut ada PR.
+              </>
+            ) : null}
             <br />
             <b>Bar</b> = satu kotak per minggu, {span === "season" ? "sepanjang musim" : `${total} minggu terakhir`}; berwarna kalau ada PR,
             minggu ini paling akhir{span === "season" ? ", yang pudar belum tiba" : ""}.
@@ -88,8 +95,12 @@ export function BoardInfo({
               ? `= weeks with a PR, out of the season's ${soFar} weeks so far (${months}, ${total} weeks).`
               : `= weeks with a PR, out of the last ${total} weeks, this one included.`}{" "}
             {soFar}/{soFar} means not a week missed.
-            <br />
-            <b>🔥</b> = streak, weeks in a row with a PR.
+            {streak ? (
+              <>
+                <br />
+                <b>🔥</b> = streak, weeks in a row with a PR.
+              </>
+            ) : null}
             <br />
             <b>Bar</b> = one block a week, {span === "season" ? "across the season" : `the last ${total} weeks`}; coloured when it had a PR,
             this week last{span === "season" ? ", the faint ones still to come" : ""}.

@@ -391,10 +391,10 @@ const BOARD_SHOWN = 5;
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 /**
- * The left column: who keeps at it — weeks with a PR, and the streak (see
- * `seasonBoard`) — over the season or the last few weeks, the top few with
- * the whole board a link away on /leaderboard. What it counts follows the
- * feed's choice (see `boardChoice`). Each row also narrows the feed beside it
+ * The left column: who keeps at it — weeks with a PR (see `seasonBoard`),
+ * and how many PRs — over the season or the last few weeks, the top few with
+ * the whole board, streaks and all, a link away on /leaderboard. What it
+ * counts is the card's choice (see `boardChoice`). Each row also narrows the feed beside it
  * to that person. A signed-in member outside the shown rows still sees their
  * own.
  */
@@ -438,7 +438,7 @@ function Leaderboard({
       <div className="ax-board-head">
         <h2 id="board-title">
           <span aria-hidden="true">🏆</span> Weeks of contribution
-          <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
+          <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} streak={false} locale={locale} />
         </h2>
         {/* Every choice of the page in one row under the board's name —
             whose repos and which weeks, pills that open a native picker —
@@ -513,7 +513,7 @@ function Leaderboard({
       ) : (
         <ol className={`ax-board-list is-${choice.count}`}>
           {rows.map((row, index) => {
-            const { person, weeks, streak, prs } = row;
+            const { person, weeks, prs } = row;
             const on = person.handle.toLowerCase() === current.member.toLowerCase();
             const mine = person.handle.toLowerCase() === viewerKey;
             return (
@@ -536,7 +536,6 @@ function Leaderboard({
                   </span>
                   <span className="ax-board-score">
                     <strong>{score(row)}</strong>
-                    {streak > 0 ? <small>🔥 {streak}</small> : null}
                   </span>
                 </InstantLink>
               </li>
