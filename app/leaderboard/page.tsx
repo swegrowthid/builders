@@ -147,7 +147,8 @@ async function LeaderboardBody({ query, locale }: { query: SearchParams; locale:
   const [askedWeeks, askedOf, askedCount, askedPlace] = [ask("weeks"), ask("of"), ask("count"), ask("place")];
   const span: BoardSpan = isBoardSpan(askedWeeks) ? askedWeeks : "season";
   const of: BoardOf = isBoardOf(askedOf) ? askedOf : "external";
-  const count: BoardCount = isBoardCount(askedCount) ? askedCount : "opened";
+  // Own repos are counted by every PR opened: no merged-only choice.
+  const count: BoardCount = of === "external" && isBoardCount(askedCount) ? askedCount : "opened";
   const today = dayKey(new Date(), "Asia/Jakarta");
   const season = seasonOf(today);
   const boardWeeks = boardWindow(today, span);
@@ -215,7 +216,7 @@ async function LeaderboardBody({ query, locale }: { query: SearchParams; locale:
         <div className="lb-board-head">
           <h2 id="board-title">
             {span === "season" ? tx(locale, "Papan musim ini", "This season's board") : tx(locale, `Papan ${span} minggu terakhir`, `The last ${span} weeks`)}{" "}
-            <BoardInfo weeks={boardWeeks} span={span} of={of} count={count} locale={locale} />
+            <BoardInfo weeks={boardWeeks} span={span} of={of} count={count} places={local.length > 0 && of === "external"} locale={locale} />
           </h2>
           <BoardFilters choice={choice} places={local.length > 0} locale={locale} />
         </div>
@@ -237,7 +238,7 @@ async function LeaderboardBody({ query, locale }: { query: SearchParams; locale:
             )}
           </p>
         ) : (
-          <SeasonTable rows={rows} season={season} boardWeeks={boardWeeks} milestones={span === "season"} viewerKey={viewerKey} locale={locale} />
+          <SeasonTable rows={rows} season={season} boardWeeks={boardWeeks} count={count} milestones={span === "season"} viewerKey={viewerKey} locale={locale} />
         )}
         <p className="lb-note">
           {tx(
@@ -352,6 +353,7 @@ function SeasonTable({
   rows,
   season,
   boardWeeks,
+  count,
   milestones,
   viewerKey,
   locale,
@@ -359,6 +361,8 @@ function SeasonTable({
   rows: ConsistencyRow[];
   season: Season;
   boardWeeks: BoardWindow;
+  /** What fills a week, which colours the bars. */
+  count: BoardCount;
   /** Milestones are the season's: shown only on its board. */
   milestones: boolean;
   viewerKey: string;
@@ -366,7 +370,7 @@ function SeasonTable({
 }) {
   return (
     <div className="lb-table">
-      <table className="lb-board">
+      <table className={`lb-board is-${count}`}>
         <thead>
           <tr>
             <th>#</th>

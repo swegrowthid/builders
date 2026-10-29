@@ -31,12 +31,15 @@ export function BoardInfo({
   span,
   of = "external",
   count = "opened",
+  places = false,
   locale,
 }: {
   weeks: BoardWindow;
   span: BoardSpan;
   of?: BoardOf;
   count?: BoardCount;
+  /** Whether the board offers local or global, which the ⓘ then explains. */
+  places?: boolean;
   locale: Locale;
 }) {
   const soFar = weeks.current + 1;
@@ -53,7 +56,7 @@ export function BoardInfo({
           <>
             {countedRule(of, count, locale)}
             <br />
-            {of === "external" ? (
+            {places ? (
               <>
                 <b>Lokal</b> = proyek member komunitas atau repo dengan maintainer Indonesia; <b>global</b> = sisanya.
                 <br />
@@ -74,7 +77,7 @@ export function BoardInfo({
           <>
             {countedRule(of, count, locale)}
             <br />
-            {of === "external" ? (
+            {places ? (
               <>
                 <b>Local</b> = a community member&apos;s project or a repo with Indonesian maintainers; <b>global</b> = the rest.
                 <br />

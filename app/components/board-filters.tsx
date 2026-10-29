@@ -10,8 +10,8 @@ import { tx, type Locale } from "../lib/locale";
 /**
  * /leaderboard's choices in one row, the way the home board has them: whose
  * repos, which weeks and — for contributions — local or global, each a pill
- * that opens a native picker; and one PR button that switches between every
- * PR opened (green) and merged only (purple). A real GET form, so it works
+ * that opens a native picker; and, for contributions, one PR button that
+ * switches between every PR opened (green) and merged only (purple). A real GET form, so it works
  * before the script does.
  */
 export function BoardFilters({ choice, places, locale }: { choice: LeaderboardChoice; places: boolean; locale: Locale }) {
@@ -75,15 +75,17 @@ export function BoardFilters({ choice, places, locale }: { choice: LeaderboardCh
           </select>
         </label>
       ) : null}
-      <Link
-        className="lb-count"
-        href={leaderboardPath({ ...choice, count: choice.count === "merged" ? "opened" : "merged" })}
-        scroll={false}
-        aria-label={countName}
-        title={countName}
-      >
-        <PullRequestIcon merged={choice.count === "merged"} />
-      </Link>
+      {choice.of === "own" ? null : (
+        <Link
+          className="lb-count"
+          href={leaderboardPath({ ...choice, count: choice.count === "merged" ? "opened" : "merged" })}
+          scroll={false}
+          aria-label={countName}
+          title={countName}
+        >
+          <PullRequestIcon merged={choice.count === "merged"} />
+        </Link>
+      )}
       <noscript>
         <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
       </noscript>

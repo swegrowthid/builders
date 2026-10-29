@@ -147,24 +147,24 @@ test("the last four or eight weeks roll back across seasons, this week last", ()
 test("the weeks counted travel in the address, the season left out", () => {
   assert.equal(readActivityFilters(new URLSearchParams("weeks=4")).weeks, "4");
   assert.equal(readActivityFilters(new URLSearchParams("weeks=52")).weeks, "season");
-  assert.equal(activityPath({ weeks: "8", place: "local" }), "/?place=local&weeks=8");
+  assert.equal(activityPath({ weeks: "8" }), "/?weeks=8");
   assert.equal(activityPath({ weeks: "season" }), "/");
   const usual = { of: "external", count: "opened", weeks: "season", place: "all" };
   assert.equal(leaderboardPath(usual), "/leaderboard");
   assert.equal(leaderboardPath({ ...usual, place: "global", weeks: "4" }), "/leaderboard?weeks=4&place=global");
-  assert.equal(leaderboardPath({ ...usual, of: "own", count: "merged", place: "local" }), "/leaderboard?of=own&count=merged", "no place for own repos");
+  assert.equal(leaderboardPath({ ...usual, of: "own", count: "merged", place: "local" }), "/leaderboard?of=own", "no place or merged-only for own repos");
 });
 
-test("the board's period is no longer in the address", () => {
-  assert.equal(activityPath({ place: "local" }), "/?place=local");
+test("the board's period, and local or global, are no longer in the home page's address", () => {
+  assert.equal("place" in readActivityFilters(new URLSearchParams("place=local")), false);
   assert.equal("board" in readActivityFilters(new URLSearchParams("board=week")), false);
 });
 
-test("the home board follows the feed's own repos, and counts merged PRs only when asked", () => {
+test("the home board counts own repos or merged PRs only when asked, and all repos always", () => {
   const read = (search) => boardChoice(readActivityFilters(new URLSearchParams(search)));
   assert.deepEqual(read(""), { of: "external", count: "opened", weeks: "season", place: "all" });
-  assert.deepEqual(read("count=merged&place=local&weeks=8"), { of: "external", count: "merged", weeks: "8", place: "local" });
-  assert.deepEqual(read("scope=own&count=merged"), { of: "own", count: "merged", weeks: "season", place: "all" });
+  assert.deepEqual(read("count=merged&place=local&weeks=8"), { of: "external", count: "merged", weeks: "8", place: "all" }, "local or global is on /leaderboard");
+  assert.deepEqual(read("scope=own&count=merged"), { of: "own", count: "opened", weeks: "season", place: "all" }, "own repos count every PR opened");
   assert.equal(activityPath({ count: "merged" }), "/?count=merged");
   assert.deepEqual(read("scope=own&place=local"), { of: "own", count: "opened", weeks: "season", place: "all" });
 });
@@ -207,8 +207,6 @@ test("local and global split pull requests by the directory's local repos", asyn
   assert.equal(inPlace(entries, "all", local).length, 3);
   assert.deepEqual(inPlace(entries, "local", local).map((entry) => entry.repo), ["kawan/krs"]);
   assert.equal(seasonBoard(inPlace(entries, "global", local), "2026-10-27")[0].prs, 2);
-  assert.equal(activityPath({ place: "local" }), "/?place=local");
-  assert.equal(readActivityFilters(new URLSearchParams("place=moon")).place, "all");
 });
 
 test("the feed follows the board's choices, and old show links land on the nearest", () => {

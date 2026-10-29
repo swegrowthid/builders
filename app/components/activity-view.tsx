@@ -19,22 +19,18 @@ import {
   activityPeople,
   dayKey,
   groupByDay,
-  inPlace,
   inScope,
-  placeCounts,
   repoSummaries,
   REPO_ORDERS,
   ownerAvatar,
   queryActivity,
   repoName,
-  ACTIVITY_PLACES,
   BOARD_SPANS,
   boardEntries,
   SUMMARY_DAYS,
   boardWindow,
   isBoardSpan,
   seasonBoard,
-  type ActivityPlace,
   type BoardSpan,
   type BoardWindow,
   type OwnBoards,
@@ -76,7 +72,6 @@ export function ActivityView({
   locale,
   unavailable,
   viewerHandle = null,
-  localRepos = [],
   ownBoards,
 }: {
   entries: GitHubActivityEntry[];
@@ -89,8 +84,6 @@ export function ActivityView({
   unavailable: boolean;
   /** The signed-in member's GitHub handle, when they are shown here: their own row on the board. */
   viewerHandle?: string | null;
-  /** Repositories the directory counts as local (`owner/name`, lower case): the local and global toggle. */
-  localRepos?: string[];
   /** The own-repos boards, from the server (see `ownBoards`). */
   ownBoards?: OwnBoards;
 }) {
@@ -134,24 +127,19 @@ export function ActivityView({
   };
 
   const current = { ...fromUrl, q: q.slice(0, 100) };
-  const local = useMemo(() => new Set(localRepos), [localRepos]);
-  // Local or global only means something for pull requests to other people's repos.
-  const place = current.scope === "own" ? "all" : current.place;
-  const inThisScope = useMemo(() => inScope(entries, current.scope), [entries, current.scope]);
-  const places = useMemo(() => placeCounts(inThisScope, local), [inThisScope, local]);
-  // Everything else narrows within the scope and place showing.
-  const scoped = useMemo(() => inPlace(inThisScope, place, local), [inThisScope, place, local]);
+  // Everything else narrows within the scope showing.
+  const scoped = useMemo(() => inScope(entries, current.scope), [entries, current.scope]);
   const people = useMemo(() => activityPeople(entries), [entries]);
-  // The board counts contributions, in the place showing, or PRs to their own
-  // repos; every PR opened, or only those merged (see `boardChoice`).
+  // The board counts contributions or PRs to their own repos; every PR
+  // opened, or only those merged (see `boardChoice`).
   const choice = boardChoice(current);
   const boardWeeks = useMemo(() => boardWindow(today, current.weeks), [today, current.weeks]);
   const board = useMemo(
     () =>
       choice.of === "own"
         ? (ownBoards?.[`${choice.weeks}:${choice.count}`] ?? [])
-        : seasonBoard(inPlace(boardEntries(entries, [], "external", choice.count), place, local), today, undefined, boardWeeks),
-    [entries, ownBoards, choice.of, choice.count, choice.weeks, place, local, today, boardWeeks],
+        : seasonBoard(boardEntries(entries, [], "external", choice.count), today, undefined, boardWeeks),
+    [entries, ownBoards, choice.of, choice.count, choice.weeks, today, boardWeeks],
   );
   const matched = useMemo(
     () => queryActivity(scoped, current),
@@ -185,7 +173,6 @@ export function ActivityView({
             choice={choice}
             boardWeeks={boardWeeks}
             current={current}
-            places={current.scope !== "own" && local.size > 0 ? places : null}
             viewerHandle={viewerHandle}
             locale={locale}
             navigate={navigate}
@@ -416,7 +403,6 @@ function Leaderboard({
   choice,
   boardWeeks,
   current,
-  places,
   viewerHandle,
   locale,
   navigate,
@@ -428,19 +414,12 @@ function Leaderboard({
   current: ActivityFilters;
   /** Moves the page to another address without a reload: the pill's choices. */
   navigate: (href: string) => void;
-  /** How many contributions went to local and global repos; null when the split is not offered. */
-  places: Record<ActivityPlace, number> | null;
   viewerHandle: string | null;
   locale: Locale;
 }) {
   const rows = all.slice(0, BOARD_SHOWN);
   const viewerKey = viewerHandle?.toLowerCase() ?? "";
   const viewerRank = viewerKey ? all.findIndex(({ person }) => person.handle.toLowerCase() === viewerKey) : -1;
-  const placeLabels: Record<ActivityPlace, string> = {
-    all: tx(locale, "semua", "all"),
-    local: tx(locale, "lokal", "local"),
-    global: tx(locale, "global", "global"),
-  };
   const spanLabels: Record<BoardSpan, string> = {
     "4": tx(locale, "4 minggu", "4 weeks"),
     "8": tx(locale, "8 minggu", "8 weeks"),
@@ -462,8 +441,9 @@ function Leaderboard({
           <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
         </h2>
         {/* Every choice of the page in one row under the board's name —
-            whose repos, which weeks, local or global: pills that open a
-            native picker — and the PR button. The feed beside follows them.
+            whose repos and which weeks, pills that open a native picker —
+            and the PR button; local or global is on /leaderboard. The feed
+            beside follows them.
             A real GET form, so it works before the script does. */}
         <form className="ax-board-pills" action="/">
           {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
@@ -502,37 +482,20 @@ function Leaderboard({
               ))}
             </select>
           </label>
-          {places && choice.of === "external" ? (
-            <label>
-              <span className="sr-only">{tx(locale, "Repo lokal atau global", "Local or global repos")}</span>
-              <select
-                name="place"
-                className={`ax-pill ${current.place !== "all" ? "is-set" : ""}`}
-                value={current.place}
-                onChange={(event) =>
-                  navigate(activityPath({ ...current, place: ACTIVITY_PLACES.find((place) => place === event.target.value) ?? "all" }))
-                }
-              >
-                {ACTIVITY_PLACES.map((place) => (
-                  <option key={place} value={place}>
-                    {placeLabels[place]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
           {/* Which PRs fill a week, as the feed draws them: every one opened
               (green), or only the merged (purple). One button showing the
               count in use; pressing it switches to the other. A link, so it
               works before the script does. */}
-          <InstantLink
-            className="ax-count"
-            href={activityPath({ ...current, count: choice.count === "merged" ? "opened" : "merged" })}
-            aria-label={countName}
-            title={countName}
-          >
-            <PullRequestIcon merged={choice.count === "merged"} />
-          </InstantLink>
+          {choice.of === "own" ? null : (
+            <InstantLink
+              className="ax-count"
+              href={activityPath({ ...current, count: choice.count === "merged" ? "opened" : "merged" })}
+              aria-label={countName}
+              title={countName}
+            >
+              <PullRequestIcon merged={choice.count === "merged"} />
+            </InstantLink>
+          )}
           <noscript>
             <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
           </noscript>
@@ -548,9 +511,9 @@ function Leaderboard({
           )}
         </p>
       ) : (
-        <ol className="ax-board-list">
+        <ol className={`ax-board-list is-${choice.count}`}>
           {rows.map((row, index) => {
-            const { person, weeks, streak } = row;
+            const { person, weeks, streak, prs } = row;
             const on = person.handle.toLowerCase() === current.member.toLowerCase();
             const mine = person.handle.toLowerCase() === viewerKey;
             return (
@@ -566,7 +529,10 @@ function Leaderboard({
                   <Avatar handle={person.handle} size={24} />
                   <span className="ax-board-who">
                     <span className="ax-board-name">{person.name || `@${person.handle}`}</span>
-                    <WeekDots weeks={weeks} current={boardWeeks.current} slim locale={locale} />
+                    <span className="ax-board-meta">
+                      <WeekDots weeks={weeks} current={boardWeeks.current} slim locale={locale} />
+                      <span>{tx(locale, `${prs} PR`, `${prs} ${prs === 1 ? "PR" : "PRs"}`)}</span>
+                    </span>
                   </span>
                   <span className="ax-board-score">
                     <strong>{score(row)}</strong>

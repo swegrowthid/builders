@@ -18,7 +18,6 @@ import { readPublicly } from "../lib/public-read";
 import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
 import { githubHandle } from "../lib/oss";
-import { localRepos } from "../lib/directory-read";
 import { isOss, site } from "../lib/site";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -170,13 +169,11 @@ async function ActivityBody({ query, locale }: { query: SearchParams; locale: Lo
   // Waiting for the request keeps the feed in the server's first answer,
   // filtered as the address asks; from then on it filters in the browser.
   await query;
-  const [result, own, reactionRows, viewer, local] = await Promise.all([
+  const [result, own, reactionRows, viewer] = await Promise.all([
     readPublicly<GitHubActivityEntry[]>("github activity", listGitHubActivity, []),
     readPublicly<PullRequestEntry[]>("own pull requests", listOwnPullRequests, []),
     readPublicly("activity reactions", listActivityReactions, []),
     currentViewer(),
-    // The directory's own reads, cached, so local means the same on both pages.
-    localRepos(locale),
   ]);
   const stats = activityStats(result.value);
   const today = dayKey(new Date(), "Asia/Jakarta");
@@ -209,7 +206,6 @@ async function ActivityBody({ query, locale }: { query: SearchParams; locale: Lo
         locale={locale}
         unavailable={result.unavailable}
         viewerHandle={viewer?.githubActivityShown ? githubHandle(viewer.github) || null : null}
-        localRepos={local}
       />
     </>
   );

@@ -1632,18 +1632,18 @@ form button[aria-busy="true"]::after,
 }
 .ax-board h2 { align-items: center; color: light-dark(#ffffff, #ffffff); display: flex; font-size: 15px; font-weight: 700; gap: 6px; margin: 0; }
 /* "this month · all repos": the board's choices as one line of pills. */
-.ax-board-pills { align-items: center; color: light-dark(rgba(255, 255, 255, .6), rgba(255, 255, 255, .6)); display: flex; flex-wrap: wrap; font-size: 12.5px; gap: 4px 6px; margin: 0; }
+.ax-board-pills { align-items: center; color: light-dark(rgba(255, 255, 255, .6), rgba(255, 255, 255, .6)); display: flex; flex-wrap: wrap; font-size: 12.5px; gap: 4px; margin: 0; }
 .ax-board-pills label { display: block; margin: 0; }
 .ax-board .ax-pill {
   align-items: center; background-color: light-dark(rgba(255, 255, 255, .18), rgba(255, 255, 255, .18)); border: 1px solid transparent; border-radius: 99px;
   color: light-dark(#ffffff, #ffffff);
-  display: inline-flex; font: inherit; font-size: 12.5px; font-weight: 600; height: 28px; line-height: normal; margin: 0; padding: 0 10px; width: auto;
+  display: inline-flex; font: inherit; font-size: 12.5px; font-weight: 600; height: 28px; line-height: normal; margin: 0; padding: 0 8px; width: auto;
 }
 .ax-board select.ax-pill {
   /* As wide as the choice showing, not the longest one, where supported. */
-  appearance: none; cursor: pointer; field-sizing: content; padding-right: 26px;
+  appearance: none; cursor: pointer; field-sizing: content; padding-right: 20px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
-  background-position: right 9px center; background-repeat: no-repeat; background-size: 12px 12px;
+  background-position: right 6px center; background-repeat: no-repeat; background-size: 12px 12px;
 }
 .ax-board select.ax-pill:hover, .ax-board select.ax-pill:focus-visible { background-color: light-dark(rgba(255, 255, 255, .28), rgba(255, 255, 255, .28)); outline: none; }
 /* Focus as a ring, not a colour: a select keeps focus after a choice, and
@@ -1697,6 +1697,15 @@ form button[aria-busy="true"]::after,
 .ax-weeks.is-slim i { border-radius: 1px; height: 3px; width: 7px; }
 .ax-weeks.is-slim i.is-now { outline: 0; }
 .ax-weeks.is-slim i.is-now:not(.is-on) { background: color-mix(in srgb, var(--tone) 35%, var(--dx-line)); }
+/* The bar in the colour of what it counts, as the feed draws PRs: green for
+   every PR opened, purple (the board's own) for merged only. */
+.ax-board-list.is-opened .ax-weeks, .lb-board.is-opened .ax-weeks { --tone: light-dark(#1a7f37, #57ab5a); }
+/* Under a name: the bar, then how many PRs it was. The bar gives way when
+   the column is narrow — the card beside the feed is — the count never wraps. */
+.ax-board-meta { align-items: center; color: var(--dx-muted); display: flex; font-size: 11px; gap: 6px; margin-top: 3px; min-width: 0; }
+.ax-board-meta .ax-weeks.is-slim { flex: 0 1 auto; margin-top: 0; min-width: 0; }
+.ax-board-meta .ax-weeks.is-slim i { flex: 0 1 7px; min-width: 2px; }
+.ax-board-meta > span:last-child { flex: none; white-space: nowrap; }
 .ax-board-score { align-items: baseline; color: var(--dx-muted); display: flex; font-size: 12px; gap: 6px; line-height: 1.2; white-space: nowrap; }
 .ax-board-score strong { color: var(--tone); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 700; }
 .ax-board-score small { font-size: 11px; }
