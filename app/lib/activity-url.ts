@@ -3,13 +3,13 @@ import {
   isBoardCount,
   isBoardSpan,
   isActivityScope,
-  isGitHubActivityFilter,
   type ActivityPlace,
   type ActivityQuery,
   type ActivityScope,
   type BoardCount,
   type BoardOf,
   type BoardSpan,
+  type GitHubActivityFilter,
 } from "./github-activity";
 
 /**
@@ -32,24 +32,22 @@ function read(query: Query, key: string): string {
 }
 
 export function readActivityFilters(query: Query): ActivityFilters {
-  const askedKind = read(query, "show");
+  // The board's card holds the choices — whose repos, which PRs — and the
+  // feed follows it. Older links, from when the feed had its own "show"
+  // select (show=, view=), land on the nearest.
   const askedScope = read(query, "scope");
-  // One "show" choice covers both scope and kind now (see SHOW_OPTIONS):
-  // contributions, of every kind or one; or members' own work. Older links
-  // that ask for both scopes at once, or for summaries by kind, land on the
-  // nearest of those.
-  let scope: ActivityScope = isActivityScope(askedScope) && askedScope !== "all" ? askedScope : "external";
-  let kind = isGitHubActivityFilter(askedKind) ? askedKind : "all";
-  if (kind === "commits") scope = "own";
-  // The show select's own field, when it is sent without the script.
+  const askedKind = read(query, "show");
   const view = read(query, "view");
-  if (isShowOption(view)) ({ scope, kind } = showFilters(view));
-  if (scope === "own") kind = "all";
+  const askedCount = read(query, "count");
+  let scope: ActivityScope = isActivityScope(askedScope) && askedScope !== "all" ? askedScope : "external";
+  if (askedKind === "commits" || view === "own") scope = "own";
+  const count: BoardCount = isBoardCount(askedCount) ? askedCount : askedKind === "merged" || view === "merged" ? "merged" : "opened";
+  // The feed shows what the board counts: merged PRs only, or every kind.
+  const kind: GitHubActivityFilter = scope === "external" && count === "merged" ? "merged" : "all";
   const member = read(query, "member").trim();
   const repo = read(query, "repo").trim().toLowerCase();
   const place = read(query, "place");
   const weeks = read(query, "weeks");
-  const count = read(query, "count");
   return {
     // Contributions unless asked otherwise: what the page is for.
     scope,
@@ -58,7 +56,7 @@ export function readActivityFilters(query: Query): ActivityFilters {
     // The leaderboard's weeks: the season unless asked.
     weeks: isBoardSpan(weeks) ? weeks : "season",
     // Which PRs fill the board's weeks: every one opened unless asked.
-    count: isBoardCount(count) ? count : "opened",
+    count,
     kind,
     member: HANDLE.test(member) ? member : "",
     repo: REPO_KEY.test(repo) ? repo : "",
@@ -79,7 +77,6 @@ export function activityPath(filters: Partial<ActivityFilters>, page = 1): strin
   if (filters.place && filters.place !== "all") params.set("place", filters.place);
   if (filters.weeks && filters.weeks !== "season") params.set("weeks", filters.weeks);
   if (filters.count && filters.count !== "opened") params.set("count", filters.count);
-  if (filters.kind && filters.kind !== "all") params.set("show", filters.kind);
   if (filters.member) params.set("member", filters.member);
   if (filters.repo) params.set("repo", filters.repo);
   if (filters.q?.trim()) params.set("q", filters.q.trim());
@@ -102,31 +99,8 @@ export function leaderboardPath({ of, count, weeks, place }: LeaderboardChoice):
   return `/leaderboard${search ? `?${search}` : ""}`;
 }
 
-/** The home board's choices: whose repos follows the feed's — "Own repos" counts their own — the rest are its own. */
+/** The home board's choices, read off the page's filters. */
 export function boardChoice(filters: ActivityFilters): LeaderboardChoice {
   const of = filters.scope === "own" || filters.kind === "commits" ? "own" : "external";
   return { of, count: filters.count, weeks: filters.weeks, place: of === "own" ? "all" : filters.place };
-}
-
-/**
- * The feed's one "show" choice, standing for a scope and a kind together:
- * every contribution, merged PRs, PRs in review, or members' own repos. It
- * steers the leaderboard too.
- */
-export const SHOW_OPTIONS = ["contributions", "merged", "open", "own"] as const;
-export type ShowOption = (typeof SHOW_OPTIONS)[number];
-
-export function isShowOption(value: string): value is ShowOption {
-  return (SHOW_OPTIONS as readonly string[]).includes(value);
-}
-
-export function showOf(filters: Pick<ActivityFilters, "scope" | "kind">): ShowOption {
-  if (filters.scope === "own") return "own";
-  return filters.kind === "merged" || filters.kind === "open" ? filters.kind : "contributions";
-}
-
-/** The scope and kind one "show" choice stands for. */
-export function showFilters(show: ShowOption): Pick<ActivityFilters, "scope" | "kind"> {
-  if (show === "own") return { scope: "own", kind: "all" };
-  return { scope: "external", kind: show === "contributions" ? "all" : show };
 }

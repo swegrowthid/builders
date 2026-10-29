@@ -10,15 +10,10 @@ import {
   activityPath,
   boardChoice,
   leaderboardPath,
-  isShowOption,
   readActivityFilters,
   readActivityPage,
-  showFilters,
-  showOf,
-  SHOW_OPTIONS,
   type ActivityFilters,
   type LeaderboardChoice,
-  type ShowOption,
 } from "../lib/activity-url";
 import {
   activityPeople,
@@ -26,14 +21,12 @@ import {
   groupByDay,
   inPlace,
   inScope,
-  kindCounts,
   placeCounts,
   repoSummaries,
   REPO_ORDERS,
   ownerAvatar,
   queryActivity,
   repoName,
-  scopeCounts,
   ACTIVITY_PLACES,
   BOARD_SPANS,
   boardEntries,
@@ -141,7 +134,6 @@ export function ActivityView({
   };
 
   const current = { ...fromUrl, q: q.slice(0, 100) };
-  const scopes = useMemo(() => scopeCounts(entries), [entries]);
   const local = useMemo(() => new Set(localRepos), [localRepos]);
   // Local or global only means something for pull requests to other people's repos.
   const place = current.scope === "own" ? "all" : current.place;
@@ -150,9 +142,8 @@ export function ActivityView({
   // Everything else narrows within the scope and place showing.
   const scoped = useMemo(() => inPlace(inThisScope, place, local), [inThisScope, place, local]);
   const people = useMemo(() => activityPeople(entries), [entries]);
-  // The board counts contributions, in the place showing, or — on the feed's
-  // Own repos — PRs to their own repos; every PR opened, or only those merged
-  // (see `boardChoice`).
+  // The board counts contributions, in the place showing, or PRs to their own
+  // repos; every PR opened, or only those merged (see `boardChoice`).
   const choice = boardChoice(current);
   const boardWeeks = useMemo(() => boardWindow(today, current.weeks), [today, current.weeks]);
   const board = useMemo(
@@ -171,24 +162,10 @@ export function ActivityView({
   const pages = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
   const page = Math.min(requested, pages);
   const shown = matched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const filtered = current.kind !== "all" || Boolean(current.member || current.repo || current.q.trim());
-  const reset = activityPath({ scope: current.scope });
+  // Narrowed by the feed's own filters; the board's choices are not undone by a reset.
+  const filtered = Boolean(current.member || current.repo || current.q.trim());
+  const reset = activityPath({ ...current, member: "", repo: "", q: "" });
 
-  const showLabels: Record<ShowOption, string> = {
-    contributions: tx(locale, "Semua kontribusi", "All contributions"),
-    merged: tx(locale, "PR merged", "Merged PRs"),
-    open: tx(locale, "PR direview", "PRs in review"),
-    own: tx(locale, "Repo sendiri", "Own repos"),
-  };
-  // Each choice's count, within the place showing: what picking it would list.
-  const contributions = inPlace(inScope(entries, "external"), current.place, local);
-  const contributionKinds = kindCounts(contributions);
-  const showCounts: Record<ShowOption, number> = {
-    contributions: contributions.length,
-    merged: contributionKinds.merged,
-    open: contributionKinds.open,
-    own: scopes.own,
-  };
   const memberName = people.find(({ person }) => person.handle.toLowerCase() === current.member.toLowerCase())?.person.name;
   // Who or where the feed is narrowed to, each with a way back.
   const chips = [
@@ -228,36 +205,6 @@ export function ActivityView({
             </p>
           </div>
           <div className="dx-toolbar ax-toolbar">
-            {/* What to show: contributions of every kind or one, or members'
-                own repos — scope and kind in one choice, steering the board
-                too. A real GET form, like the directory's sort, so it works
-                before the script does. */}
-            <form className="dx-sort ax-show" action="/">
-              {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
-              {current.repo ? <input type="hidden" name="repo" value={current.repo} /> : null}
-              {current.q ? <input type="hidden" name="q" value={current.q} /> : null}
-              {current.place !== "all" ? <input type="hidden" name="place" value={current.place} /> : null}
-              <label>
-                <span className="sr-only">{tx(locale, "Tampilkan", "Show")}</span>
-                <select
-                  name="view"
-                  value={showOf(current)}
-                  onChange={(event) =>
-                    isShowOption(event.target.value) ? navigate(activityPath({ ...current, ...showFilters(event.target.value), member: "", repo: "" })) : undefined
-                  }
-                >
-                  {SHOW_OPTIONS.map((show) => (
-                    <option key={show} value={show}>
-                      {showLabels[show]}
-                      {` (${showCounts[show]})`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <noscript>
-                <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
-              </noscript>
-            </form>
             <form
               className="dx-search"
               action="/"
@@ -514,17 +461,29 @@ function Leaderboard({
           <span aria-hidden="true">🏆</span> Weeks of contribution
           <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
         </h2>
-        {/* The board's choices in one row under its name: the weeks and
-            place pills that open a native picker, and the PR button; "own
-            repos" is named when the feed's choice set it. A real GET form,
-            so it works before the script does. */}
+        {/* Every choice of the page in one row under the board's name —
+            whose repos, which weeks, local or global: pills that open a
+            native picker — and the PR button. The feed beside follows them.
+            A real GET form, so it works before the script does. */}
         <form className="ax-board-pills" action="/">
-          {current.scope !== "external" ? <input type="hidden" name="scope" value={current.scope} /> : null}
-          {current.kind !== "all" ? <input type="hidden" name="show" value={current.kind} /> : null}
           {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
           {current.repo ? <input type="hidden" name="repo" value={current.repo} /> : null}
           {current.q ? <input type="hidden" name="q" value={current.q} /> : null}
           {current.count !== "opened" ? <input type="hidden" name="count" value={current.count} /> : null}
+          <label>
+            <span className="sr-only">{tx(locale, "Repo siapa", "Whose repos")}</span>
+            <select
+              name="scope"
+              className={`ax-pill ${choice.of !== "external" ? "is-set" : ""}`}
+              value={choice.of}
+              onChange={(event) =>
+                navigate(activityPath({ ...current, scope: event.target.value === "own" ? "own" : "external", member: "", repo: "" }))
+              }
+            >
+              <option value="external">{tx(locale, "kontribusi", "contributions")}</option>
+              <option value="own">{tx(locale, "repo sendiri", "own repos")}</option>
+            </select>
+          </label>
           <label>
             <span className="sr-only">{tx(locale, "Minggu yang dihitung", "Weeks counted")}</span>
             <select
@@ -562,7 +521,6 @@ function Leaderboard({
               </select>
             </label>
           ) : null}
-          {choice.of === "own" ? <span className="ax-pill is-set">{tx(locale, "repo sendiri", "own repos")}</span> : null}
           {/* Which PRs fill a week, as the feed draws them: every one opened
               (green), or only the merged (purple). One button showing the
               count in use; pressing it switches to the other. A link, so it

@@ -164,7 +164,7 @@ test("the home board follows the feed's own repos, and counts merged PRs only wh
   const read = (search) => boardChoice(readActivityFilters(new URLSearchParams(search)));
   assert.deepEqual(read(""), { of: "external", count: "opened", weeks: "season", place: "all" });
   assert.deepEqual(read("count=merged&place=local&weeks=8"), { of: "external", count: "merged", weeks: "8", place: "local" });
-  assert.deepEqual(read("show=merged"), { of: "external", count: "opened", weeks: "season", place: "all" }, "the feed's kind is its own");
+  assert.deepEqual(read("scope=own&count=merged"), { of: "own", count: "merged", weeks: "season", place: "all" });
   assert.equal(activityPath({ count: "merged" }), "/?count=merged");
   assert.deepEqual(read("scope=own&place=local"), { of: "own", count: "opened", weeks: "season", place: "all" });
 });
@@ -211,21 +211,20 @@ test("local and global split pull requests by the directory's local repos", asyn
   assert.equal(readActivityFilters(new URLSearchParams("place=moon")).place, "all");
 });
 
-test("one show choice stands for scope and kind, and old links land on the nearest", async () => {
-  const { showOf, showFilters } = await import("../app/lib/activity-url.ts");
+test("the feed follows the board's choices, and old show links land on the nearest", () => {
   const read = (search) => {
     const filters = readActivityFilters(new URLSearchParams(search));
-    return [filters.scope, filters.kind, showOf(filters)];
+    return [filters.scope, filters.count, filters.kind];
   };
-  assert.deepEqual(read(""), ["external", "all", "contributions"]);
+  assert.deepEqual(read(""), ["external", "opened", "all"]);
+  assert.deepEqual(read("count=merged"), ["external", "merged", "merged"], "merged only on the board, merged only in the feed");
+  assert.deepEqual(read("scope=own&count=merged"), ["own", "merged", "all"], "own work is summed up, not by kind");
   assert.deepEqual(read("show=merged"), ["external", "merged", "merged"]);
-  assert.deepEqual(read("scope=own"), ["own", "all", "own"]);
-  assert.deepEqual(read("show=commits"), ["own", "all", "own"], "summaries are members' own work");
-  assert.deepEqual(read("scope=all&show=open"), ["external", "open", "open"], "both scopes at once is no longer offered");
-  assert.deepEqual(read("scope=own&show=merged"), ["own", "all", "own"]);
-  for (const show of ["contributions", "merged", "open", "own"]) assert.equal(showOf(showFilters(show)), show);
-  assert.equal(activityPath({ ...showFilters("own") }), "/?scope=own");
-  assert.equal(activityPath({ ...showFilters("open") }), "/?show=open");
+  assert.deepEqual(read("show=open"), ["external", "opened", "all"], "in review alone is no longer offered");
+  assert.deepEqual(read("show=commits"), ["own", "opened", "all"]);
+  assert.deepEqual(read("view=own"), ["own", "opened", "all"]);
+  assert.deepEqual(read("scope=all"), ["external", "opened", "all"]);
+  assert.equal(activityPath({ scope: "own", kind: "merged", count: "merged" }), "/?scope=own&count=merged", "the kind is never written");
 });
 
 test("where PRs went: newest first by default, or by PRs, or by people", async () => {
