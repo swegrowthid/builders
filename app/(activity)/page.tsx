@@ -10,15 +10,14 @@ import { feedStats, groupProductFeed } from "../lib/product-feed";
 import { Skeleton } from "../components/skeleton";
 import { shareCard } from "../content";
 import { activityPath, readActivityFilters, readActivityPage } from "../lib/activity-url";
-import { listActivityReactions, listGitHubActivity, listProductFeed, listProjects } from "../lib/data";
+import { listActivityReactions, listGitHubActivity, listOwnPullRequests, listProductFeed, listProjects } from "../lib/data";
 import { summarizeReactions } from "../lib/reactions";
 import { currentViewer } from "../lib/session";
-import { activityStats, dayKey, type GitHubActivityEntry } from "../lib/github-activity";
+import { activityStats, dayKey, ownBoards, type GitHubActivityEntry, type PullRequestEntry } from "../lib/github-activity";
 import { readPublicly } from "../lib/public-read";
 import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
 import { githubHandle } from "../lib/oss";
-import { localRepos } from "../lib/directory-read";
 import { isOss, site } from "../lib/site";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -170,14 +169,14 @@ async function ActivityBody({ query, locale }: { query: SearchParams; locale: Lo
   // Waiting for the request keeps the feed in the server's first answer,
   // filtered as the address asks; from then on it filters in the browser.
   await query;
-  const [result, reactionRows, viewer, local] = await Promise.all([
+  const [result, own, reactionRows, viewer] = await Promise.all([
     readPublicly<GitHubActivityEntry[]>("github activity", listGitHubActivity, []),
+    readPublicly<PullRequestEntry[]>("own pull requests", listOwnPullRequests, []),
     readPublicly("activity reactions", listActivityReactions, []),
     currentViewer(),
-    // The directory's own reads, cached, so local means the same on both pages.
-    localRepos(locale),
   ]);
   const stats = activityStats(result.value);
+  const today = dayKey(new Date(), "Asia/Jakarta");
 
   return (
     <>
@@ -202,11 +201,11 @@ async function ActivityBody({ query, locale }: { query: SearchParams; locale: Lo
         entries={result.value}
         reactions={summarizeReactions(reactionRows.value, viewer?.id ?? null)}
         viewerName={viewer ? viewer.name || viewer.username : null}
-        today={dayKey(new Date(), "Asia/Jakarta")}
+        today={today}
+        ownBoards={ownBoards(own.value, today)}
         locale={locale}
         unavailable={result.unavailable}
         viewerHandle={viewer?.githubActivityShown ? githubHandle(viewer.github) || null : null}
-        localRepos={local}
       />
     </>
   );

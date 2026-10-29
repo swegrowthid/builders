@@ -1619,36 +1619,54 @@ form button[aria-busy="true"]::after,
 .ax-side { display: grid; gap: 20px; position: sticky; top: calc(var(--header-h) + 20px); }
 /* A plain card like the rest of the page, with purple — a merged PR's
    colour — in its head, its scores and its links. */
-.ax-board { border: 1px solid var(--dx-line); border-radius: 12px; overflow: hidden; padding: 0 0 12px; }
+/* Not overflow:hidden, which would cut off the ⓘ's explanation; the head
+   rounds its own corners instead. */
+.ax-board { border: 1px solid var(--dx-line); border-radius: 12px; padding: 0 0 12px; }
 .ax-board > :not(.ax-board-head) { margin-left: 12px; margin-right: 12px; }
 /* The head is the scoreboard: a deep purple — a merged PR's colour — over a
    plain list, with the title and the pills in white on it. White on purple in
    both themes, so those pairs name the same colour twice. */
 .ax-board-head {
   background: linear-gradient(135deg, light-dark(#8250df, #6e40c9), light-dark(#6639ba, #4c2889)); display: grid; gap: 8px;
-  margin-bottom: 8px; padding: 14px 16px 12px;
+  border-radius: 11px 11px 0 0; margin-bottom: 8px; padding: 14px 16px 12px;
 }
 .ax-board h2 { align-items: center; color: light-dark(#ffffff, #ffffff); display: flex; font-size: 15px; font-weight: 700; gap: 6px; margin: 0; }
 /* "this month · all repos": the board's choices as one line of pills. */
-.ax-board-pills { align-items: center; color: light-dark(rgba(255, 255, 255, .6), rgba(255, 255, 255, .6)); display: flex; flex-wrap: wrap; font-size: 12.5px; gap: 4px 6px; margin: 0; }
+.ax-board-pills { align-items: center; color: light-dark(rgba(255, 255, 255, .6), rgba(255, 255, 255, .6)); display: flex; flex-wrap: wrap; font-size: 12.5px; gap: 4px; margin: 0; }
 .ax-board-pills label { display: block; margin: 0; }
 .ax-board .ax-pill {
   align-items: center; background-color: light-dark(rgba(255, 255, 255, .18), rgba(255, 255, 255, .18)); border: 1px solid transparent; border-radius: 99px;
   color: light-dark(#ffffff, #ffffff);
-  display: inline-flex; font: inherit; font-size: 12.5px; font-weight: 600; height: 28px; line-height: normal; margin: 0; padding: 0 10px; width: auto;
+  display: inline-flex; font: inherit; font-size: 12.5px; font-weight: 600; height: 28px; line-height: normal; margin: 0; padding: 0 8px; width: auto;
 }
 .ax-board select.ax-pill {
   /* As wide as the choice showing, not the longest one, where supported. */
-  appearance: none; cursor: pointer; field-sizing: content; padding-right: 26px;
+  appearance: none; cursor: pointer; field-sizing: content; padding-right: 20px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
-  background-position: right 9px center; background-repeat: no-repeat; background-size: 12px 12px;
+  background-position: right 6px center; background-repeat: no-repeat; background-size: 12px 12px;
 }
 .ax-board select.ax-pill:hover, .ax-board select.ax-pill:focus-visible { background-color: light-dark(rgba(255, 255, 255, .28), rgba(255, 255, 255, .28)); outline: none; }
-/* A choice that is not the default: the pill turns white, its text purple. */
-.ax-board .ax-pill.is-set, .ax-board select.ax-pill.is-set:hover {
+/* Focus as a ring, not a colour: a select keeps focus after a choice, and
+   must still look chosen. */
+.ax-board select.ax-pill:focus-visible { box-shadow: 0 0 0 2px light-dark(rgba(255, 255, 255, .55), rgba(255, 255, 255, .55)); }
+/* A choice that is not the default: the pill turns white, its text purple —
+   hovered or focused too. */
+.ax-board .ax-pill.is-set, .ax-board select.ax-pill.is-set:hover, .ax-board select.ax-pill.is-set:focus-visible {
   background-color: light-dark(#ffffff, #ffffff); color: light-dark(#6639ba, #4c2889);
+}
+/* The arrow only on a pill that opens a picker; a plain one — "own repos" — just names the feed's choice. */
+.ax-board select.ax-pill.is-set {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236639ba' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
 }
+/* Which PRs fill a week: one round button on white, its PR icon in the
+   feed's colours — green for every PR opened, purple for merged only. */
+.ax-board .ax-count {
+  align-items: center; background-color: light-dark(#ffffff, #ffffff); border-radius: 99px; display: inline-flex; flex: none; height: 28px;
+  justify-content: center; width: 28px;
+}
+.ax-board .ax-count:hover { box-shadow: 0 0 0 3px light-dark(rgba(255, 255, 255, .3), rgba(255, 255, 255, .3)); }
+.ax-board .ax-count .ax-pr-icon.is-open { color: light-dark(#1a7f37, #1a7f37); }
+.ax-board .ax-count .ax-pr-icon.is-merged { color: light-dark(#8250df, #8250df); }
 /* The native picker's own list keeps the page's colours, not white on white. */
 .ax-board select.ax-pill option { color: var(--dx-ink); }
 .ax-board-pills noscript button { background: var(--dx-soft); border: 0; border-radius: 99px; font-size: 12px; height: 28px; padding: 0 10px; }
@@ -1671,7 +1689,24 @@ form button[aria-busy="true"]::after,
 .ax-weeks { display: flex; gap: 3px; }
 .ax-weeks i { background: var(--dx-line); border-radius: 50%; height: 6px; width: 6px; }
 .ax-weeks i.is-on { background: var(--tone); }
-.ax-board-score { color: var(--dx-muted); display: grid; font-size: 12px; justify-items: end; line-height: 1.2; }
+.ax-weeks i.is-now { outline: 1.5px solid var(--tone); outline-offset: 1px; }
+.ax-weeks i.is-later { opacity: .4; }
+/* Slim: a thin bar of segments under a name in a list — this week a
+   half-tone until it is filled, no ring. */
+.ax-weeks.is-slim { gap: 1.5px; margin-top: 3px; }
+.ax-weeks.is-slim i { border-radius: 1px; height: 3px; width: 7px; }
+.ax-weeks.is-slim i.is-now { outline: 0; }
+.ax-weeks.is-slim i.is-now:not(.is-on) { background: color-mix(in srgb, var(--tone) 35%, var(--dx-line)); }
+/* The bar in the colour of what it counts, as the feed draws PRs: green for
+   every PR opened, purple (the board's own) for merged only. */
+.ax-board-list.is-opened .ax-weeks, .lb-board.is-opened .ax-weeks { --tone: light-dark(#1a7f37, #57ab5a); }
+/* Under a name: the bar, then how many PRs it was. The bar gives way when
+   the column is narrow — the card beside the feed is — the count never wraps. */
+.ax-board-meta { align-items: center; color: var(--dx-muted); display: flex; font-size: 11px; gap: 6px; margin-top: 3px; min-width: 0; }
+.ax-board-meta .ax-weeks.is-slim { flex: 0 1 auto; margin-top: 0; min-width: 0; }
+.ax-board-meta .ax-weeks.is-slim i { flex: 0 1 7px; min-width: 2px; }
+.ax-board-meta > span:last-child { flex: none; white-space: nowrap; }
+.ax-board-score { align-items: baseline; color: var(--dx-muted); display: flex; font-size: 12px; gap: 6px; line-height: 1.2; white-space: nowrap; }
 .ax-board-score strong { color: var(--tone); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 700; }
 .ax-board-score small { font-size: 11px; }
 .ax-board-empty { color: var(--dx-muted); font-size: 13px; line-height: 1.55; margin: 4px 4px 8px; }
@@ -2834,50 +2869,66 @@ a.ab-card:hover h3 { color: light-dark(#0969da, #4493f8); }
 .ab-faq details:last-child:not([open]) summary { border-radius: 0 0 8px 8px; }
 .ab-faq p { color: var(--dx-muted); font-size: 13.5px; line-height: 1.65; margin: 0; padding: 0 14px 14px; }
 /* /leaderboard, before it exists: the about page's frame, with a badge. */
-.lb-soon-badge {
-  background: var(--tone-soft); border-radius: 99px; color: var(--tone); display: inline-block;
-  font-size: 11px; font-weight: 700; letter-spacing: .06em; margin: 0 0 10px; padding: 4px 10px; text-transform: uppercase;
+.lb-page h1 { align-items: center; display: flex; gap: 10px; }
+/* A flex item of the body: without this the board's widest row would widen the page on a phone. */
+.lb-page { min-width: 0; }
+.lb-season { color: light-dark(#8250df, #b392f0); font-size: 13px; font-weight: 650; margin: 6px 0 0; }
+.lb-note { color: var(--dx-muted); font-size: 13px; line-height: 1.6; margin: 10px 0 0; }
+.lb-note a { color: light-dark(#0969da, #4493f8); font-weight: 600; }
+
+.lb-you { --tone: light-dark(#8250df, #b392f0); border: 1px solid var(--dx-line); border-radius: 12px; display: grid; gap: 12px; justify-items: start; margin-top: 24px; padding: 18px 20px; }
+.lb-you.is-done { --tone: light-dark(#1a7f37, #3fb950); }
+.lb-you h2 { font-size: 15px; font-weight: 650; margin: 0; }
+.lb-you p { color: var(--dx-text); font-size: 14px; line-height: 1.6; margin: 0; }
+.lb-you .ax-weeks { gap: 6px; }
+.lb-you .ax-weeks i { height: 12px; width: 12px; }
+.lb-you-stats { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; }
+.lb-you-stats dt { color: var(--dx-muted); font-size: 12px; }
+.lb-you-stats dd { color: var(--dx-ink); font-size: 18px; font-weight: 700; margin: 2px 0 0; }
+
+.lb-milestones { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); list-style: none; margin: 14px 0 0; padding: 0; }
+.lb-milestones li { border: 1px solid var(--dx-line); border-radius: 10px; display: grid; gap: 2px; padding: 12px 14px; }
+.lb-milestones li.is-mine { border-color: light-dark(#8250df, #b392f0); }
+.lb-milestones strong { color: var(--dx-ink); font-size: 14px; }
+.lb-milestones span { color: var(--dx-text); font-size: 13px; }
+.lb-milestones small { color: var(--dx-muted); font-size: 12px; margin-top: 4px; }
+.lb-milestone-icon { font-size: 22px; line-height: 1.2; }
+
+.lb-board-head { display: grid; gap: 10px; }
+.lb-board-head h2 { margin: 0; }
+/* BoardFilters (board-filters.tsx): one row of pills that open a native
+   picker, the chosen-but-not-default ones in purple, and the PR button. */
+.lb-filters { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
+.lb-filters label { display: block; margin: 0; }
+.lb-filter {
+  appearance: none; background: transparent no-repeat right 10px center / 12px 12px; border: 1px solid var(--dx-line); border-radius: 99px; color: var(--dx-text);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  cursor: pointer; field-sizing: content; font: inherit; font-size: 13px; font-weight: 600; height: 32px; margin: 0; padding: 0 30px 0 12px; width: auto;
 }
-.lb-soon h1 { align-items: center; display: flex; gap: 10px; }
-/* The preview: this month's real leaders in the clear, then made-up rows
-   fading into a blur, with a "coming soon" lock over the fog. No frame: the
-   table floats on the page and dissolves into it. */
-.lb-preview { margin-top: 28px; padding-bottom: 8px; position: relative; }
-.lb-preview-note { color: var(--dx-muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; margin: 0 0 8px; text-transform: uppercase; }
+.lb-filter:hover { border-color: var(--dx-muted); }
+.lb-filter:focus-visible { box-shadow: 0 0 0 2px light-dark(rgba(130, 80, 223, .35), rgba(179, 146, 240, .35)); outline: none; }
+.lb-filter.is-set { border-color: light-dark(#8250df, #b392f0); color: light-dark(#8250df, #b392f0); }
+.lb-filter option { color: var(--dx-ink); }
+.lb-filters noscript button { background: var(--dx-soft); border: 0; border-radius: 99px; font-size: 12.5px; height: 32px; padding: 0 12px; }
+.lb-count { align-items: center; border: 1px solid var(--dx-line); border-radius: 99px; display: inline-flex; height: 32px; justify-content: center; width: 32px; }
+.lb-count:hover { border-color: var(--dx-muted); }
+.lb-week strong { color: var(--dx-ink); }
+.lb-table { margin-top: 12px; max-width: 100%; overflow-x: auto; }
 .lb-board { border-collapse: collapse; font-size: 13.5px; width: 100%; }
 .lb-board th { border-bottom: 1px solid var(--dx-line); color: var(--dx-muted); font-size: 12px; font-weight: 600; padding: 8px 10px; text-align: left; }
-.lb-board td { border-bottom: 1px solid var(--dx-line); color: var(--dx-text); padding: 10px; white-space: nowrap; }
+.lb-board td { border-bottom: 1px solid var(--dx-line); color: var(--dx-text); padding: 10px; vertical-align: middle; white-space: nowrap; }
 .lb-board td:nth-child(2) { align-items: center; color: var(--dx-ink); display: flex; font-weight: 600; gap: 10px; }
+.lb-board tr.is-mine td { background: light-dark(rgba(130, 80, 223, .07), rgba(179, 146, 240, .1)); }
 .lb-board .lb-points { color: light-dark(#8250df, #b392f0); font-weight: 700; }
-.lb-board .lb-soon-cell { color: var(--dx-faint); }
-.lb-avatar {
-  align-items: center; background: hsl(var(--hue, 262) 55% 55%); border-radius: 50%; color: light-dark(#ffffff, #ffffff); display: inline-flex;
-  flex: none; font-size: 11px; font-weight: 700; height: 28px; justify-content: center; object-fit: cover; width: 28px;
-}
-.lb-made { pointer-events: none; user-select: none; }
-/* Made-up rows are never sharp, whatever the fog does: a name in them must not read as a member's. */
-.lb-made td { filter: blur(3px); }
-.lb-fog {
-  -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
-  background: linear-gradient(to bottom, light-dark(rgba(255, 255, 255, 0), rgba(31, 31, 31, 0)) var(--lb-clear, 66px), light-dark(rgba(255, 255, 255, .92), rgba(31, 31, 31, .92)) 92%);
-  inset: 0;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--lb-clear, 66px) - 2px), light-dark(#000, #000) calc(var(--lb-clear, 66px) + 14px));
-  mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--lb-clear, 66px) - 2px), light-dark(#000, #000) calc(var(--lb-clear, 66px) + 14px));
-  pointer-events: none; position: absolute;
-}
-.lb-lock {
-  align-items: center; bottom: 28px; display: flex; flex-direction: column; gap: 8px; left: 0; padding: 0 24px; position: absolute;
-  right: 0; text-align: center;
-}
-.lb-lock-icon {
-  align-items: center; background: light-dark(#ffffff, #2a2a2e); border: 1px solid var(--dx-line); border-radius: 50%;
-  box-shadow: 0 8px 24px light-dark(rgba(41, 41, 41, .12), rgba(0, 0, 0, .4)); display: inline-flex; font-size: 24px; height: 56px;
-  justify-content: center; width: 56px;
-}
-.lb-lock h2 { color: var(--dx-ink); font-size: 20px; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 0; }
-.lb-lock p { color: var(--dx-text); font-size: 14px; line-height: 1.6; margin: 0 0 6px; max-width: 360px; }
+.lb-who { display: grid; gap: 4px; min-width: 0; }
+.lb-who a { color: inherit; }
+.lb-who a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.lb-board .ax-weeks { --tone: light-dark(#8250df, #b392f0); }
+.lb-avatar { border-radius: 50%; flex: none; height: 28px; width: 28px; }
 @media (max-width: 640px) {
   .lb-board .lb-wide { display: none; }
+  .lb-board td:nth-child(2) { white-space: normal; }
+  .lb-board th, .lb-board td { padding-left: 6px; padding-right: 6px; }
 }
 .ab-cta { background: var(--tone-soft); border-radius: 10px; margin-top: 40px; padding: 22px 24px; }
 /* A call to action that opens the page, under its intro, rather than closing it. */
@@ -2941,3 +2992,26 @@ a.ab-card:hover h3 { color: light-dark(#0969da, #4493f8); }
 .level-track li.is-current { color: var(--ink); }
 .level-track li.is-current::before { background: var(--ink); border-color: var(--ink); }
 .stage-buttons button { border-color: var(--line-2); }
+
+/* ThisWeek (week-dots.tsx) on the activity page's board: who already has a PR this week. */
+.ax-board-week { color: var(--dx-muted); font-size: 12px; line-height: 1.45; margin: 10px 4px 0; }
+.ax-board-week strong { color: var(--dx-ink); font-weight: 600; }
+
+/* BoardInfo (week-dots.tsx): an ⓘ whose explanation opens on hover or focus,
+   under the heading it sits in and never wider than it, so a phone never
+   scrolls sideways. */
+:has(> .info-tip) { position: relative; }
+.info-tip { display: inline-block; vertical-align: middle; }
+.info-tip-icon {
+  align-items: center; background: none; border: 1.5px solid currentColor; border-radius: 50%; color: inherit; cursor: help; display: inline-flex;
+  font: italic 700 10px/1 Georgia, serif; height: 16px; justify-content: center; margin: 0 0 0 4px; opacity: .75; padding: 0; width: 16px;
+}
+.info-tip-icon:hover, .info-tip-icon:focus-visible { opacity: 1; }
+.info-tip-body {
+  background: light-dark(#fff, #26262a); border: 1px solid var(--dx-line); border-radius: 8px; box-shadow: 0 8px 24px light-dark(rgba(0, 0, 0, .18), rgba(0, 0, 0, .36));
+  color: var(--dx-text); font-size: 12.5px; font-weight: 400; letter-spacing: normal; line-height: 1.5; opacity: 0; padding: 10px 12px;
+  left: 0; pointer-events: none; position: absolute; text-align: left; top: calc(100% + 6px); transition: opacity .12s;
+  visibility: hidden; white-space: normal; width: min(300px, calc(100vw - 32px)); z-index: 30;
+}
+.info-tip-body b { color: var(--dx-ink); font-weight: 650; }
+.info-tip:hover .info-tip-body, .info-tip:focus-within .info-tip-body { opacity: 1; pointer-events: auto; visibility: visible; }

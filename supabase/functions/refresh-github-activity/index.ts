@@ -39,6 +39,7 @@ import {
   SUGGESTION_PREFIX,
   suggestionsFrom,
   type ContributionRow,
+  type GraphQLBody,
   type Member,
   type MemberActivity,
 } from "./activity.ts";
@@ -124,12 +125,21 @@ async function refresh(asked: string[] | null): Promise<void> {
     // Who wrote the repositories they sent pull requests to: one written
     // mostly by the member is theirs, not a contribution. If GitHub does not
     // answer, the line drawn so far stands.
-    const repos = authorQuestions(activities);
-    if (repos.length > 0) {
+    const mainAuthors = new Map<string, string>();
+    for (const repos of authorQuestions(activities)) {
       const authors = await askGitHub(token, buildAuthorQuery(repos));
-      if (authors.ok) activities = parseResponse(batch, body, now, narrowed, mainAuthorsOf(repos, await authors.json()));
-      else console.error(`[refresh-github-activity] GitHub answered ${authors.status} to the authors question.`);
+      if (!authors.ok) {
+        console.error(`[refresh-github-activity] GitHub answered ${authors.status} to the authors question.`);
+        continue;
+      }
+      const answer: GraphQLBody = await authors.json();
+      // A repository GitHub would not show — an organisation can keep tokens
+      // out — stays a contribution; say which, so it can be looked into.
+      const unread = repos.filter((_, index) => !answer.data?.[`a${index}`]);
+      if (unread.length > 0) console.error(`[refresh-github-activity] No commits read for ${unread.join(", ")}.`);
+      for (const [repo, login] of mainAuthorsOf(repos, answer)) mainAuthors.set(repo, login);
     }
+    if (mainAuthors.size > 0) activities = parseResponse(batch, body, now, narrowed, mainAuthors);
 
     for (const activity of activities) {
       await store(supabase, activity);

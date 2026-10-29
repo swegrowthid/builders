@@ -26,7 +26,7 @@ test("one query asks about every member, public pull requests only, names quoted
   assert.match(query, /u0: user\(login: "ana"\)/);
   assert.match(query, /u1: user\(login: "budi"\)/);
   assert.match(query, /contributionsCollection\(from: "2026-09-22T00:00:00.000Z"\)/);
-  assert.match(query, /p1: search\(type: ISSUE, first: 50, query: "is:pr is:public author:budi updated:>=2026-07-24"\)/);
+  assert.match(query, /p1: search\(type: ISSUE, first: 50, query: "is:pr is:public author:budi updated:>=2026-07-14"\)/);
   assert.match(query, /organizations\(first: 100\)/);
   assert.match(query, /authorAssociation/);
 });
@@ -142,7 +142,7 @@ test("a search the member's own repos filled is asked again without them", () =>
   assert.deepEqual(budiFirst.found && budiFirst.narrowSearch, []);
 
   const query = buildSearchQuery([{ index: 0, handle: "ana", exclude: ["work", "ana"] }], now);
-  assert.match(query, /p0: search\(type: ISSUE, first: 50, query: "is:pr is:public author:ana updated:>=2026-07-24 -user:work -user:ana"\)/);
+  assert.match(query, /p0: search\(type: ISSUE, first: 50, query: "is:pr is:public author:ana updated:>=2026-07-14 -user:work -user:ana"\)/);
   assert.doesNotMatch(query, /u0:/);
   // A query GitHub would refuse for its length keeps only the owners that fit.
   const long = buildSearchQuery([{ index: 0, handle: "ana", exclude: Array.from({ length: 20 }, (_, i) => `organisation-${i}`) }], now);
@@ -377,7 +377,8 @@ test("a repository the member wrote nearly alone is their own work, whoever owns
   } };
 
   const first = parseResponse([member], body, now);
-  const repos = authorQuestions(first);
+  const [repos, more] = authorQuestions(first);
+  assert.equal(more, undefined, "three repos: one question");
   assert.deepEqual(repos, ["ahmadrosid/nakama", "busy/shared", "go-routine-id/flowmaid"]);
   assert.match(buildAuthorQuery(repos), /a2: repository\(owner: "go-routine-id", name: "flowmaid"\)/);
 
@@ -397,4 +398,13 @@ test("a repository the member wrote nearly alone is their own work, whoever owns
     ["busy/shared", false],
   ]);
   assert.deepEqual(activity.summary.repos, [{ repo: "go-routine-id/flowmaid", commits: 12 }], "its commits join their own work");
+});
+
+test("every repository is asked about, forty at a time, not only the first forty", async () => {
+  const { authorQuestions, AUTHOR_REPOS_MAX } = await import("../supabase/functions/refresh-github-activity/activity.ts");
+  const pullRequests = Array.from({ length: 95 }, (_, index) => ({ repo: `org${String(index).padStart(2, "0")}/repo`, own: false }));
+  const questions = authorQuestions([{ found: true, pullRequests: [...pullRequests, { repo: "mine/own", own: true }] }]);
+  assert.deepEqual(questions.map((repos) => repos.length), [AUTHOR_REPOS_MAX, AUTHOR_REPOS_MAX, 15]);
+  assert.equal(questions.at(-1).at(-1), "org94/repo", "late in the alphabet too");
+  assert.equal(questions.flat().includes("mine/own"), false);
 });

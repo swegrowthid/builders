@@ -26,8 +26,11 @@
 
 /** How many members go into one request. */
 export const BATCH_SIZE = 10;
-/** Pull requests updated in this many days are asked about. */
-export const PULL_REQUEST_DAYS = 90;
+/**
+ * Pull requests updated in this many days are asked about: enough for a whole
+ * leaderboard season, a quarter of 13 or 14 weeks (see app/lib/github-activity.ts).
+ */
+export const PULL_REQUEST_DAYS = 100;
 /** Commits to a member's own repositories are summed over this many days. */
 export const COMMIT_DAYS = 30;
 /** Pull requests one search returns. */
@@ -85,7 +88,7 @@ export type MemberActivity =
       narrowSearch: string[];
     };
 
-type GraphQLBody = { data?: Record<string, unknown> | null; errors?: Array<{ path?: unknown[]; message?: string }> };
+export type GraphQLBody = { data?: Record<string, unknown> | null; errors?: Array<{ path?: unknown[]; message?: string }> };
 
 const HANDLE = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 const REPO_KEY = /^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/;
@@ -223,14 +226,22 @@ export function mainAuthorsOf(repos: string[], body: GraphQLBody): Map<string, s
   return authors;
 }
 
-/** The repositories a batch sent pull requests to that are not yet any member's own: what buildAuthorQuery asks about. */
-export function authorQuestions(activities: MemberActivity[]): string[] {
+/**
+ * The repositories a batch sent pull requests to that are not yet any
+ * member's own: what buildAuthorQuery asks about, AUTHOR_REPOS_MAX at a time.
+ * All of them — ten busy members reach past forty, and a repository left out
+ * stays a contribution whoever wrote it.
+ */
+export function authorQuestions(activities: MemberActivity[]): string[][] {
   const repos = new Set<string>();
   for (const activity of activities) {
     if (!activity.found) continue;
     for (const pr of activity.pullRequests) if (!pr.own) repos.add(pr.repo);
   }
-  return [...repos].sort().slice(0, AUTHOR_REPOS_MAX);
+  const sorted = [...repos].sort();
+  return Array.from({ length: Math.ceil(sorted.length / AUTHOR_REPOS_MAX) }, (_, index) =>
+    sorted.slice(index * AUTHOR_REPOS_MAX, (index + 1) * AUTHOR_REPOS_MAX),
+  );
 }
 
 type Repository = { nameWithOwner?: unknown; isPrivate?: unknown; owner?: { login?: unknown } | null } | null | undefined;
