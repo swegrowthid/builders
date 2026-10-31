@@ -1,6 +1,83 @@
-import type { GitHubProfile } from "../lib/github-profile";
+import type { CSSProperties } from "react";
+import { calendarMonths, weekdayOf, type ContributionDay, type GitHubProfile } from "../lib/github-profile";
 import type { ReadmeInline } from "../lib/readme";
 import { tx, type Locale } from "../lib/locale";
+import { CalendarScroll } from "./calendar-scroll";
+
+const COUNTING_URL = "https://docs.github.com/en/account-and-profile/concepts/contributions-on-your-profile";
+
+/**
+ * The last year of contributions as GitHub draws it on a profile: one square
+ * a day, greener for a busier one, the latest week on the right. It sits under
+ * the profile's numbers, so the year's total has its shape beside it.
+ */
+export function ContributionCalendar({ weeks, total, locale }: { weeks: ContributionDay[][]; total: number; locale: Locale }) {
+  const tag = locale === "id" ? "id-ID" : "en-GB";
+  const monthName = new Intl.DateTimeFormat(tag, { month: "short", timeZone: "UTC" });
+  const dayName = new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  // The first week can start after Sunday; blank squares keep its days on their rows.
+  const lead = weekdayOf(weeks[0][0].date);
+
+  const dayTitle = ({ date, count }: ContributionDay) => {
+    const when = dayName.format(new Date(`${date}T00:00:00Z`));
+    if (count === 0) return tx(locale, `Tidak ada kontribusi pada ${when}`, `No contributions on ${when}`);
+    const amount = count.toLocaleString(tag);
+    return tx(locale, `${amount} kontribusi pada ${when}`, `${amount} ${count === 1 ? "contribution" : "contributions"} on ${when}`);
+  };
+
+  return (
+    <div className="gh-cal" id="github-contributions">
+      <CalendarScroll className="gh-cal-scroll">
+        <div className="gh-cal-body" style={{ "--weeks": weeks.length } as CSSProperties}>
+          <div className="gh-cal-months" aria-hidden="true">
+            {calendarMonths(weeks).map(({ column, month }) => (
+              <span key={month} style={{ gridColumnStart: column + 1 }}>
+                {monthName.format(new Date(`${month}-01T00:00:00Z`))}
+              </span>
+            ))}
+          </div>
+          <div className="gh-cal-days" aria-hidden="true">
+            <span />
+            <span>{tx(locale, "Sen", "Mon")}</span>
+            <span />
+            <span>{tx(locale, "Rab", "Wed")}</span>
+            <span />
+            <span>{tx(locale, "Jum", "Fri")}</span>
+            <span />
+          </div>
+          <div
+            className="gh-cal-grid"
+            role="img"
+            aria-label={tx(
+              locale,
+              `${total.toLocaleString(tag)} kontribusi di GitHub dalam setahun terakhir`,
+              `${total.toLocaleString(tag)} contributions on GitHub in the last year`,
+            )}
+          >
+            {Array.from({ length: lead }, (_, index) => (
+              <i key={`lead-${index}`} className="is-lead" />
+            ))}
+            {weeks.flat().map((day) => (
+              <i key={day.date} className={`is-l${day.level}`} title={dayTitle(day)} />
+            ))}
+          </div>
+        </div>
+      </CalendarScroll>
+      <div className="gh-cal-foot">
+        <a href={COUNTING_URL} target="_blank" rel="noreferrer">
+          {tx(locale, "Cara GitHub menghitung kontribusi", "How GitHub counts contributions")} ↗
+        </a>
+        <span className="gh-cal-legend" aria-hidden="true">
+          {tx(locale, "Sedikit", "Less")}
+          {[0, 1, 2, 3, 4].map((level) => (
+            <i key={level} className={`is-l${level}`} />
+          ))}
+          {tx(locale, "Banyak", "More")}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 /**
  * A member's open source work as GitHub tells it, on their profile: pull
