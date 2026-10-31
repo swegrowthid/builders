@@ -8,7 +8,7 @@ import { LinkIcon, type LinkIconKind } from "../../components/link-icons";
 import { PageScrollTop } from "../../components/project-scroll-top";
 import { ShareProfileButton } from "../../components/share-profile-button";
 import { OssRecordEmpty, OssRecordList } from "../../components/oss-record";
-import { GitHubReadme, GitHubSummary } from "../../components/github-summary";
+import { ContributionCalendar, GitHubReadme, GitHubSummary } from "../../components/github-summary";
 import { SubmitButton } from "../../components/submit-button";
 import {
   getGitHubProfile,
@@ -216,6 +216,9 @@ export default async function ProfilePage({
           )}
           {stats.since && !gh ? <Stat value={monthYear(stats.since, locale)} label={tx(locale, "aktif sejak", "active since")} /> : null}
         </ul>
+
+        {/* A profile cached before the calendar was read has none: no graph, not a crash. */}
+        {gh?.calendar?.length ? <ContributionCalendar weeks={gh.calendar} total={gh.year.contributions} locale={locale} /> : null}
 
         {isSelf ? <SelfNote person={person} owned={owned} locale={locale} /> : null}
 

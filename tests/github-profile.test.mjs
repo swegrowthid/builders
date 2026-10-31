@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildAuthorQuery, buildProfileQuery, buildPullRequestQuery, organisationsOf, parseProfile, pullRequestRepos, soloReposOf } from "../app/lib/github-profile.ts";
+import { buildAuthorQuery, buildProfileQuery, buildPullRequestQuery, calendarMonths, organisationsOf, parseProfile, pullRequestRepos, soloReposOf, weekdayOf } from "../app/lib/github-profile.ts";
 
 const pr = (repo, extra = {}) => ({
   title: `Fix ${repo}`,
@@ -127,4 +127,44 @@ test("a repository the member wrote nearly alone is not somebody else's, whoever
   assert.deepEqual(result.open, []);
   assert.deepEqual(result.merged.repos.map((repo) => repo.repo), ["big/project"]);
   assert.equal(result.merged.count, 1);
+});
+
+test("the contribution calendar comes through day by day, short weeks and all", () => {
+  // Trimmed from a real answer: weeks from Sunday, the last one cut off at today.
+  const withCalendar = structuredClone(profile);
+  withCalendar.data.user.contributionsCollection.contributionCalendar = {
+    totalContributions: 500,
+    weeks: [
+      { contributionDays: [
+        { date: "2025-11-05", contributionCount: 11, contributionLevel: "FIRST_QUARTILE" },
+        { date: "2025-11-06", contributionCount: 0, contributionLevel: "NONE" },
+        { date: "not a day", contributionCount: 3, contributionLevel: "FIRST_QUARTILE" },
+      ] },
+      { contributionDays: [] },
+      { contributionDays: [{ date: "2026-11-01", contributionCount: 24, contributionLevel: "FOURTH_QUARTILE" }] },
+    ],
+  };
+  assert.deepEqual(parseProfile(withCalendar, { data: {} }, 42).calendar, [
+    [{ date: "2025-11-05", count: 11, level: 1 }, { date: "2025-11-06", count: 0, level: 0 }],
+    [{ date: "2026-11-01", count: 24, level: 4 }],
+  ]);
+  assert.deepEqual(parseProfile(profile, { data: {} }, 42).calendar, []);
+  assert.equal(weekdayOf("2025-11-05"), 3);
+  assert.equal(weekdayOf("2026-11-01"), 0);
+});
+
+test("month names sit where a month's first week starts, and only where they fit", () => {
+  const weeksFrom = (sunday, count) => Array.from({ length: count }, (_, index) => {
+    const date = new Date(Date.parse(`${sunday}T00:00:00Z`) + index * 7 * 86_400_000).toISOString().slice(0, 10);
+    return [{ date, count: 0, level: 0 }];
+  });
+  // 2 Nov 2025 to 1 Nov 2026, as GitHub sent it on that day: the last week is
+  // November's only one, so October is the last month named.
+  const year = calendarMonths(weeksFrom("2025-11-02", 53));
+  assert.equal(year.length, 12);
+  assert.deepEqual(year[0], { column: 0, month: "2025-11" });
+  assert.deepEqual(year[1], { column: 5, month: "2025-12" });
+  assert.deepEqual(year.at(-1), { column: 48, month: "2026-10" });
+  // A year that opens on the last two weeks of a month leaves that month unnamed.
+  assert.deepEqual(calendarMonths(weeksFrom("2025-11-23", 6)).map((label) => label.month), ["2025-12"]);
 });

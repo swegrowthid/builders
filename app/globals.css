@@ -2420,6 +2420,46 @@ footer .theme-row[aria-checked="true"] .theme-switch::after { transform: transla
 .pf-stats li { display: flex; flex-direction: column; }
 .pf-stats strong { font-size: 20px; font-variant-numeric: tabular-nums; font-weight: 650; letter-spacing: -.02em; }
 .pf-stats span { color: var(--dx-muted); font-size: 12px; }
+/* The contribution graph under the GitHub numbers (ContributionCalendar in
+   github-summary.tsx): GitHub's day squares, in the green the weekly boards
+   already use for a PR. Wider than a phone, it scrolls inside its own frame. */
+.gh-cal {
+  --cal-green: light-dark(#1a7f37, #57ab5a); --cal-none: var(--dx-line); --cell: 11px; --gap: 3px;
+  margin: 18px 0 0; max-width: 100%; width: max-content;
+}
+.gh-cal-scroll { overflow-x: auto; padding-bottom: 4px; }
+.gh-cal-body {
+  display: grid; gap: 6px 8px; grid-template-areas: ". months" "days grid"; grid-template-columns: auto auto; width: max-content;
+}
+.gh-cal-months {
+  color: var(--dx-muted); display: grid; font-size: 12px; gap: 0 var(--gap); grid-area: months;
+  grid-template-columns: repeat(var(--weeks), var(--cell)); line-height: 1;
+}
+.gh-cal-months span { white-space: nowrap; }
+.gh-cal-days {
+  color: var(--dx-muted); display: grid; font-size: 12px; gap: var(--gap); grid-area: days;
+  grid-template-rows: repeat(7, var(--cell)); line-height: var(--cell);
+}
+.gh-cal-grid {
+  display: grid; gap: var(--gap); grid-area: grid; grid-auto-columns: var(--cell); grid-auto-flow: column;
+  grid-template-rows: repeat(7, var(--cell));
+}
+.gh-cal i { background: var(--cal-none); border-radius: 2px; display: block; height: var(--cell); width: var(--cell); }
+.gh-cal i.is-l1 { background: color-mix(in srgb, var(--cal-green) 35%, var(--cal-none)); }
+.gh-cal i.is-l2 { background: color-mix(in srgb, var(--cal-green) 60%, var(--cal-none)); }
+.gh-cal i.is-l3 { background: color-mix(in srgb, var(--cal-green) 80%, var(--cal-none)); }
+.gh-cal i.is-l4 { background: var(--cal-green); }
+.gh-cal i.is-lead { visibility: hidden; }
+.gh-cal-foot {
+  align-items: center; color: var(--dx-muted); display: flex; flex-wrap: wrap; font-size: 12px; gap: 8px 16px;
+  justify-content: space-between; margin-top: 8px;
+}
+/* A 12px line with a full-size tap area around it. */
+.gh-cal-foot a { color: var(--dx-muted); display: inline-block; margin: -14px 0; padding: 14px 0; text-decoration: underline; text-underline-offset: 3px; }
+.gh-cal-foot a:hover { color: var(--dx-ink); }
+.gh-cal-legend { align-items: center; display: inline-flex; gap: var(--gap); }
+.gh-cal-legend i:first-of-type { margin-left: 4px; }
+.gh-cal-legend i:last-of-type { margin-right: 4px; }
 .pf-self-note {
   background: light-dark(#fff7ed, #261c10); border-radius: 10px; color: light-dark(#b45309, #fbbf24); font-size: 13px; line-height: 1.5;
   margin: 16px 0 0; padding: 10px 14px;
