@@ -33,6 +33,9 @@ export type OpenPullRequest = { repo: string; title: string; url: string; number
 
 export type MergedRepo = { repo: string; url: string; merged: number; lastMergedAt: string; stars: number };
 
+/** One square of the contribution graph: `level` is GitHub's quartile, 0 for none. */
+export type ContributionDay = { date: string; count: number; level: 0 | 1 | 2 | 3 | 4 };
+
 export type GitHubProfile = {
   login: string;
   /** The profile README's words, or none. */
@@ -40,6 +43,11 @@ export type GitHubProfile = {
   pinned: PinnedRepo[];
   /** This year's numbers, from GitHub's contribution calendar. */
   year: { contributions: number; commits: number; pullRequests: number; reviews: number };
+  /**
+   * The same calendar day by day, as GitHub draws it on a profile: weeks from
+   * Sunday, oldest first. The first and last weeks can be short.
+   */
+  calendar: ContributionDay[][];
   /** Repositories of other people they have opened a pull request to, ever. */
   reposContributedTo: number;
   open: OpenPullRequest[];
@@ -72,7 +80,7 @@ export function buildProfileQuery(login: string): { query: string; variables: Re
       nodes { ... on Repository { nameWithOwner url description stargazerCount isPrivate primaryLanguage { name color } } }
     }
     contributionsCollection {
-      contributionCalendar { totalContributions }
+      contributionCalendar { totalContributions weeks { contributionDays { date contributionCount contributionLevel } } }
       totalCommitContributions
       totalPullRequestContributions
       totalPullRequestReviewContributions
@@ -228,6 +236,10 @@ export function parseProfile(profileBody: unknown, pullRequestBody: unknown, git
     reviews: Number(collection.totalPullRequestReviewContributions) || 0,
   };
   const reposContributedTo = Number((user.repositoriesContributedTo as { totalCount?: unknown } | undefined)?.totalCount) || 0;
+  const calendarWeeks = (Array.isArray(calendar.weeks) ? calendar.weeks : []) as Array<{ contributionDays?: unknown } | null>;
+  const calendarDays = calendarWeeks
+    .map((week) => (Array.isArray(week?.contributionDays) ? week.contributionDays : []).flatMap(contributionDay))
+    .filter((week) => week.length > 0);
 
   const openNodes = (((data?.open as { nodes?: unknown[] } | undefined)?.nodes ?? []) as PullRequestNode[]).filter(usable);
   const open: OpenPullRequest[] = openNodes.map((node) => ({
@@ -262,6 +274,7 @@ export function parseProfile(profileBody: unknown, pullRequestBody: unknown, git
     readme,
     pinned,
     year,
+    calendar: calendarDays,
     reposContributedTo,
     open,
     merged: {
@@ -272,4 +285,35 @@ export function parseProfile(profileBody: unknown, pullRequestBody: unknown, git
       repos,
     },
   };
+}
+
+const LEVELS: Record<string, ContributionDay["level"]> = { NONE: 0, FIRST_QUARTILE: 1, SECOND_QUARTILE: 2, THIRD_QUARTILE: 3, FOURTH_QUARTILE: 4 };
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A day of the calendar as GitHub sent it, or nothing for one that is not plainly a day. */
+function contributionDay(node: unknown): ContributionDay[] {
+  const day = node as { date?: unknown; contributionCount?: unknown; contributionLevel?: unknown } | null;
+  if (typeof day?.date !== "string" || !DAY.test(day.date)) return [];
+  const count = Math.max(0, Number(day.contributionCount) || 0);
+  const level = LEVELS[String(day.contributionLevel)] ?? (count > 0 ? 1 : 0);
+  return [{ date: day.date, count, level }];
+}
+
+/** 0 for Sunday, as GitHub's weeks start; read from the date itself, not the clock. */
+export function weekdayOf(date: string): number {
+  return new Date(`${date}T00:00:00Z`).getUTCDay();
+}
+
+/**
+ * Where the month names go above the graph: at the first week that starts in
+ * a new month, as on GitHub. A month showing fewer than three weeks, at
+ * either end of the year, has no room for its name.
+ */
+export function calendarMonths(weeks: ContributionDay[][]): Array<{ column: number; month: string }> {
+  const starts: Array<{ column: number; month: string }> = [];
+  weeks.forEach((week, column) => {
+    const month = week[0]?.date.slice(0, 7);
+    if (month && month !== starts.at(-1)?.month) starts.push({ column, month });
+  });
+  return starts.filter((start, index) => (starts[index + 1]?.column ?? weeks.length) - start.column >= 3);
 }
