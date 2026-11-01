@@ -29,7 +29,7 @@ function addLabel(locale: Locale): string {
 }
 
 /** Which top-level section the current page belongs to. */
-export type Section = "directory" | "recommend" | "admin" | "activity" | "how" | "about" | "community" | "feedback" | "";
+export type Section = "directory" | "leaderboard" | "recommend" | "admin" | "activity" | "how" | "about" | "community" | "feedback" | "";
 
 export function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return (
@@ -59,9 +59,12 @@ type NavLink = { href: string; label: string; labelId: string; key: Section; ico
  * in the menu, and on a phone the bottom bar. The directory comes second, as
  * what it is: on the open source site, repos we think are good places to
  * start, not a complete catalogue. Adding to it is the header's one button.
+ * The open source site's leaderboard sits between them: the home page shows
+ * its first rows, and the whole season is one tap away.
  */
 const PRIMARY_LINKS: NavLink[] = [
   { href: "/", label: "Activity", labelId: "Aktivitas", key: "activity", icon: isOss ? "pull-request" : "pulse" },
+  ...(isOss ? [{ href: "/leaderboard", label: "Leaderboard", labelId: "Leaderboard", key: "leaderboard", icon: "trophy" } satisfies NavLink] : []),
   { href: "/directory", label: "Directory", labelId: "Direktori", key: "directory", icon: "directory" },
 ];
 
@@ -86,7 +89,7 @@ function MainNav({ active, locale }: { active: Section; locale: Locale }) {
         <Link
           key={link.href}
           aria-current={active === link.key ? "page" : undefined}
-          className={active === link.key ? "is-active" : ""}
+          className={[active === link.key ? "is-active" : "", SECONDARY_LINKS.includes(link) ? "nav-secondary" : ""].filter(Boolean).join(" ")}
           href={link.href}
         >
           {tx(locale, link.labelId, link.label)}

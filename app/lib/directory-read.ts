@@ -72,3 +72,20 @@ export async function localRepos(locale: Locale): Promise<string[]> {
   const { entries } = await readDirectory(locale);
   return [...new Set(entries.filter((entry) => entry.repo && scopeOf(entry) === "local").map((entry) => entry.repo as string))];
 }
+
+/**
+ * The directory's entry for one GitHub repository, `owner` and `repo` in any
+ * case — what a repo's page is built from. Only what the directory lists has a
+ * page; anything else is null.
+ */
+export async function findListedRepo(locale: Locale, owner: string, repo: string): Promise<DirectoryEntry | null> {
+  const key = `${owner}/${repo}`.toLowerCase();
+  const { entries } = await readDirectory(locale);
+  return entries.find((entry) => entry.track === "github" && entry.repo === key) ?? null;
+}
+
+/** Every listed repository with a page, as `owner/name` in lower case. */
+export async function listedRepos(locale: Locale): Promise<string[]> {
+  const { entries } = await readDirectory(locale);
+  return [...new Set(entries.filter((entry) => entry.track === "github" && entry.repo).map((entry) => entry.repo as string))];
+}

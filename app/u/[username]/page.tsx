@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import Link from "@/app/components/responsive-link";
 import { setActivityVisibility } from "../../actions";
@@ -7,8 +8,9 @@ import { ActivityList, initials, monthYear } from "../../components/pieces";
 import { LinkIcon, type LinkIconKind } from "../../components/link-icons";
 import { PageScrollTop } from "../../components/project-scroll-top";
 import { ShareProfileButton } from "../../components/share-profile-button";
-import { OssRecordEmpty, OssRecordList } from "../../components/oss-record";
+import { OssRecordEmpty, OssRecordList, type RepoBrief } from "../../components/oss-record";
 import { GitHubReadme, GitHubSummary } from "../../components/github-summary";
+import { SeasonRecord } from "../../components/season-record";
 import { SubmitButton } from "../../components/submit-button";
 import {
   getGitHubProfile,
@@ -17,6 +19,7 @@ import {
   getPersonStats,
   getPortfolio,
   listOssContributionsOf,
+  listOssMembers,
   listPeople,
   listPersonActivity,
   type Person,
@@ -27,6 +30,7 @@ import { domainOf, projectBlurb } from "../../lib/brief";
 import { nextSteps, remainingSteps } from "../../lib/next-steps";
 import { githubHandle, type OssContribution } from "../../lib/oss";
 import { readPublicly } from "../../lib/public-read";
+import { readDirectory } from "../../lib/directory-read";
 import { stageLabel } from "../../lib/stages";
 import { currentViewer } from "../../lib/session";
 import { currentLocale } from "../../lib/locale-server";
@@ -133,6 +137,35 @@ export default async function ProfilePage({
   const gh = gitHubShown
     ? (await readPublicly("GitHub summary on a profile", () => getGitHubProfile(githubHandle(person.github), person.githubId ?? null), null)).value
     : null;
+  // What GitHub cannot say about their repos: which are listed here, what
+  // the directory says of them, and who else from the community got merged there.
+  const [directory, members] = isOss
+    ? await Promise.all([
+        readPublicly("the directory on a profile", async () => (await readDirectory(locale)).entries, []),
+        gh ? readPublicly("community members on a profile", listOssMembers, []) : { value: [] },
+      ])
+    : [{ value: [] }, { value: [] }];
+  const listedRepos = directory.value.filter((entry) => entry.track === "github" && entry.repo);
+  const briefs: Record<string, RepoBrief> = {
+    ...Object.fromEntries(
+      (gh?.pinned ?? []).map((pin) => [
+        pin.repo.toLowerCase(),
+        { description: pin.description, listed: false, prTier: null, language: pin.language?.name ?? "", languageColor: pin.language?.color, stars: pin.stars },
+      ]),
+    ),
+    ...Object.fromEntries(
+      listedRepos.map((entry) => [
+        entry.repo as string,
+        { description: entry.description, listed: true, prTier: entry.prTier, language: entry.language, stars: entry.stars ?? 0 },
+      ]),
+    ),
+  };
+  const alongside = Object.fromEntries(
+    (gh?.merged.repos ?? []).map(({ repo }) => [
+      repo.toLowerCase(),
+      members.value.filter((member) => member.username !== person.username && member.handle && member.contributions.some((each) => each.repo === repo.toLowerCase())),
+    ]),
+  );
   const hasOlder = activity.length > limit;
   const trail = activity.slice(0, limit);
   const handle = githubHandle(person.github);
@@ -159,6 +192,13 @@ export default async function ProfilePage({
     const search = params.toString();
     return `/u/${person.username}${search ? `?${search}` : ""}#activity-heading`;
   };
+
+  const season =
+    isOss && handle && person.githubActivityShown ? (
+      <Suspense fallback={null}>
+        <SeasonRecord personId={person.id} self={isSelf} locale={locale} />
+      </Suspense>
+    ) : null;
 
   return (
     <>
@@ -221,8 +261,10 @@ export default async function ProfilePage({
 
         <div className={gh ? "pf-layout has-github" : "pf-layout"}>
           <div className="pf-main">
-            {/* The open source record is the open source site's; builders points there. */}
-            {isOss && gh ? <GitHubSummary profile={gh} locale={locale} /> : null}
+            {/* The open source record is the open source site's; builders points there.
+                Their season comes under what they got merged, with the same
+                consent /activity runs on. */}
+            {isOss && gh ? <GitHubSummary profile={gh} locale={locale} afterMerged={season} listed={listedRepos.map((entry) => entry.repo as string)} alongside={alongside} /> : season}
             {isOss && isSelf && !gitHubShown ? (
               <p className="pf-self-note">
                 {tx(locale, "Tampilkan ringkasan GitHub-mu di sini: PR berjalan, yang sudah di-merge, dan repo yang kamu sematkan.", "Show your GitHub summary here: open PRs, merged ones, and your pinned repos.")}{" "}
@@ -238,7 +280,7 @@ export default async function ProfilePage({
                   {isSelf ? <Link href="/account/profile#open-source">{tx(locale, "Kelola", "Manage")}</Link> : null}
                 </div>
                 {records.length > 0 ? (
-                  <OssRecordList records={sortRecords(records)} handle={handle} locale={locale} />
+                  <OssRecordList records={sortRecords(records)} handle={handle} briefs={briefs} locale={locale} />
                 ) : (
                   <OssRecordEmpty self={isSelf} locale={locale} />
                 )}

@@ -1,17 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import Link from "@/app/components/responsive-link";
-import { PullRequestIcon } from "./activity-view";
 import { leaderboardPath, type LeaderboardChoice } from "../lib/activity-url";
-import { ACTIVITY_PLACES, BOARD_OF, BOARD_SPANS, type ActivityPlace, type BoardOf, type BoardSpan } from "../lib/github-activity";
+import { ACTIVITY_PLACES, BOARD_COUNTS, BOARD_OF, BOARD_SPANS, isBoardCount, type ActivityPlace, type BoardCount, type BoardOf, type BoardSpan } from "../lib/github-activity";
 import { tx, type Locale } from "../lib/locale";
 
 /**
  * /leaderboard's choices in one row, the way the home board has them: whose
- * repos, which weeks and — for contributions — local or global, each a pill
- * that opens a native picker; and, for contributions, one PR button that
- * switches between every PR opened (green) and merged only (purple). A real GET form, so it works
+ * repos, which weeks, and — for contributions — local or global and which
+ * PRs, each a pill that opens a native picker. A real GET form, so it works
  * before the script does.
  */
 export function BoardFilters({ choice, places, locale }: { choice: LeaderboardChoice; places: boolean; locale: Locale }) {
@@ -20,14 +17,10 @@ export function BoardFilters({ choice, places, locale }: { choice: LeaderboardCh
   const ofNames: Record<BoardOf, string> = { external: tx(locale, "Kontribusi", "Contributions"), own: tx(locale, "Repo sendiri", "Own repos") };
   const spanNames: Record<BoardSpan, string> = { "4": tx(locale, "4 minggu", "4 weeks"), "8": tx(locale, "8 minggu", "8 weeks"), season: tx(locale, "Musim ini", "This season") };
   const placeNames: Record<ActivityPlace, string> = { all: tx(locale, "Semua", "All"), local: tx(locale, "Lokal", "Local"), global: tx(locale, "Global", "Global") };
-  const countName =
-    choice.count === "merged"
-      ? tx(locale, "Menghitung PR merged saja. Ganti ke semua PR yang dibuka", "Counting merged PRs only. Switch to every PR opened")
-      : tx(locale, "Menghitung semua PR yang dibuka. Ganti ke PR merged saja", "Counting every PR opened. Switch to merged PRs only");
+  const countNames: Record<BoardCount, string> = { opened: tx(locale, "Semua PR dibuka", "Every PR opened"), merged: tx(locale, "Merged saja", "Merged only") };
 
   return (
     <form className="lb-filters" action="/leaderboard">
-      {choice.count !== "opened" ? <input type="hidden" name="count" value={choice.count} /> : null}
       <label>
         <span className="sr-only">{tx(locale, "Repo siapa", "Whose repos")}</span>
         <select
@@ -76,15 +69,21 @@ export function BoardFilters({ choice, places, locale }: { choice: LeaderboardCh
         </label>
       ) : null}
       {choice.of === "own" ? null : (
-        <Link
-          className="lb-count"
-          href={leaderboardPath({ ...choice, count: choice.count === "merged" ? "opened" : "merged" })}
-          scroll={false}
-          aria-label={countName}
-          title={countName}
-        >
-          <PullRequestIcon merged={choice.count === "merged"} />
-        </Link>
+        <label>
+          <span className="sr-only">{tx(locale, "PR yang dihitung", "Which PRs")}</span>
+          <select
+            name="count"
+            className={`lb-filter ${choice.count !== "opened" ? "is-set" : ""}`}
+            value={choice.count}
+            onChange={(event) => go({ count: isBoardCount(event.target.value) ? event.target.value : "opened" })}
+          >
+            {BOARD_COUNTS.map((count) => (
+              <option key={count} value={count}>
+                {countNames[count]}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
       <noscript>
         <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>

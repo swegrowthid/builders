@@ -429,6 +429,12 @@ export function ownBoards(own: PullRequestEntry[], today: string): OwnBoards {
 /** The Mondays of a board's weeks, oldest first, and which one is this week. */
 export type BoardWindow = { weeks: string[]; current: number };
 
+/** Pull requests from the window's first Monday on; summaries keep their own SUMMARY_DAYS. */
+export function inWindow(entries: GitHubActivityEntry[], window: BoardWindow, timeZone = "Asia/Jakarta"): GitHubActivityEntry[] {
+  const from = window.weeks[0];
+  return entries.filter((entry) => entry.kind !== "pull_request" || dayKey(entry.at, timeZone) >= from);
+}
+
 export function boardWindow(today: string, span: BoardSpan): BoardWindow {
   if (span === "season") return seasonOf(today);
   const count = Number(span);
@@ -555,6 +561,45 @@ export function activityStats(entries: GitHubActivityEntry[]): ActivityStats {
     open: pullRequests.filter((entry) => entry.state === "open").reduce((sum, entry) => sum + pullRequestCount(entry), 0),
     repos: new Set(pullRequests.map((entry) => entry.repo)).size,
   };
+}
+
+/** One of the community's pull requests to a repository, as its page lists them. */
+export type RepoPullRequest = PullRequestItem & { person: ActivityPerson; state: "open" | "merged" };
+
+export type RepoCommunity = {
+  /** Members with a pull request merged there, the most recent first. */
+  merged: ActivityPerson[];
+  /** Members with one still in review there and none merged yet. */
+  inReview: ActivityPerson[];
+  /** Their pull requests to it, newest first. */
+  pullRequests: RepoPullRequest[];
+};
+
+/**
+ * What the community has done on one repository — `repo` as `owner/name`, in
+ * any case — from the activity feed's entries: who got merged, who is in
+ * review, and the pull requests themselves. A repo page's community view.
+ */
+export function repoCommunity(entries: GitHubActivityEntry[], repo: string): RepoCommunity {
+  const key = repo.toLowerCase();
+  const pullRequests: RepoPullRequest[] = [];
+  for (const entry of entries) {
+    if (entry.kind !== "pull_request" || entry.repo !== key) continue;
+    for (const item of entry.pullRequests) pullRequests.push({ ...item, person: entry.person, state: entry.state });
+  }
+  pullRequests.sort((a, b) => b.at.localeCompare(a.at) || b.number - a.number);
+
+  const merged = new Map<string, ActivityPerson>();
+  const inReview = new Map<string, ActivityPerson>();
+  for (const pr of pullRequests) {
+    const handle = pr.person.handle.toLowerCase();
+    if (pr.state === "merged" && !merged.has(handle)) merged.set(handle, pr.person);
+  }
+  for (const pr of pullRequests) {
+    const handle = pr.person.handle.toLowerCase();
+    if (pr.state === "open" && !merged.has(handle) && !inReview.has(handle)) inReview.set(handle, pr.person);
+  }
+  return { merged: [...merged.values()], inReview: [...inReview.values()], pullRequests };
 }
 
 /** The repository owner's GitHub picture, the same address the directory uses. */

@@ -6,6 +6,7 @@ import {
   buildSearchQuery,
   chunk,
   githubHandle,
+  isHiddenRepo,
   parseResponse,
 } from "../supabase/functions/refresh-github-activity/activity.ts";
 import { activityRepos, activityStats, buildGitHubActivity, queryActivity } from "../app/lib/github-activity.ts";
@@ -82,6 +83,42 @@ test("pull requests are kept, own repos' marked as such; own repos' commits beco
     since: "2026-09-22",
     checked_at: now.toISOString(),
   });
+});
+
+test("a repository the member hides is skipped, by name or by its whole owner", () => {
+  const repository = (name) => ({ nameWithOwner: name, isPrivate: false, owner: { login: name.split("/")[0] } });
+  const pr = (name, number) => ({ url: `https://github.com/${name}/pull/${number}`, number, title: "", state: "OPEN", createdAt: "2026-10-10T00:00:00Z", mergedAt: null, repository: repository(name) });
+  const [activity] = parseResponse(
+    [{ ...ana, hidden: ["org/secret", "work/*"] }],
+    {
+      data: {
+        u0: {
+          login: "ana",
+          contributionsCollection: {
+            commitContributionsByRepository: [
+              { repository: repository("ana/side"), contributions: { totalCount: 3, nodes: [] } },
+              { repository: repository("ana/diary"), contributions: { totalCount: 5, nodes: [] } },
+            ],
+          },
+        },
+        p0: { nodes: [pr("org/tool", 1), pr("Org/Secret", 2), pr("work/api", 3)] },
+      },
+    },
+    now,
+  );
+  assert.deepEqual(activity.pullRequests.map((row) => row.repo), ["org/tool"]);
+
+  const [own] = parseResponse(
+    [{ ...ana, hidden: ["ana/diary"] }],
+    { data: { u0: { login: "ana", contributionsCollection: { commitContributionsByRepository: [{ repository: repository("ana/side"), contributions: { totalCount: 3, nodes: [] } }, { repository: repository("ana/diary"), contributions: { totalCount: 5, nodes: [] } }] } }, p0: { nodes: [] } } },
+    now,
+  );
+  assert.deepEqual(own.summary.repos, [{ repo: "ana/side", commits: 3 }]);
+  assert.equal(own.summary.commits, 3);
+
+  assert.equal(isHiddenRepo("work/api", ["work/*"]), true);
+  assert.equal(isHiddenRepo("workshop/api", ["work/*"]), false);
+  assert.equal(isHiddenRepo("org/tool", []), false);
 });
 
 test("an organisation the member belongs to is their own work, not a contribution", () => {
@@ -407,4 +444,17 @@ test("every repository is asked about, forty at a time, not only the first forty
   assert.deepEqual(questions.map((repos) => repos.length), [AUTHOR_REPOS_MAX, AUTHOR_REPOS_MAX, 15]);
   assert.equal(questions.at(-1).at(-1), "org94/repo", "late in the alphabet too");
   assert.equal(questions.flat().includes("mine/own"), false);
+});
+
+test("the feed follows the board's weeks; a summary of own work keeps its own window", async () => {
+  const { boardWindow, inWindow } = await import("../app/lib/github-activity.ts");
+  const person = { id: ana.id, username: "ana", name: "Ana", handle: "ana" };
+  const pr = (at) => ({ kind: "pull_request", key: at, person, repo: "x/y", url: `https://github.com/x/y/pull/${at}`, state: "open", pullRequests: [], at });
+  const summary = { kind: "commit_summary", key: "s", person, commits: 3, merged: 0, repos: [], since: "2026-09-01", at: "2026-09-01T00:00:00.000Z" };
+  // 2026-10-22 is a Thursday: the last four weeks start on Monday 2026-09-28, the season on Monday 2026-10-05.
+  const lastFour = boardWindow("2026-10-22", "4");
+  const kept = inWindow([pr("2026-10-21T03:00:00.000Z"), pr("2026-09-28T01:00:00.000Z"), pr("2026-09-27T10:00:00.000Z"), summary], lastFour);
+  // 2026-09-27 10:00 UTC is 17:00 WIB on Sunday: the week before the window.
+  assert.deepEqual(kept.map((entry) => entry.key), ["2026-10-21T03:00:00.000Z", "2026-09-28T01:00:00.000Z", "s"]);
+  assert.equal(inWindow([pr("2026-10-04T18:00:00.000Z")], boardWindow("2026-10-22", "season")).length, 1, "Monday 01:00 WIB is in the season's first week");
 });

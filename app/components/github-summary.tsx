@@ -1,24 +1,116 @@
+import type { ReactNode } from "react";
+import Link from "@/app/components/responsive-link";
 import type { GitHubProfile } from "../lib/github-profile";
 import type { ReadmeInline } from "../lib/readme";
 import { tx, type Locale } from "../lib/locale";
+import { ownerAvatar } from "../lib/github-activity";
+import { repoPagePath } from "../lib/directory";
+import type { OssMember } from "../lib/oss";
 
 /**
- * A member's open source work as GitHub tells it, on their profile: pull
- * requests still open on other people's repositories, where their merged ones
- * landed, and what they pinned. Lists, not prose — each row is a repository
- * and a number, and leads to GitHub.
+ * A member's open source work on their profile: where their merged pull
+ * requests landed — with who else from the community got merged there — those
+ * still in review.
  */
-export function GitHubSummary({ profile, locale }: { profile: GitHubProfile; locale: Locale }) {
-  const { login, open, merged, pinned } = profile;
+export function GitHubSummary({
+  profile,
+  locale,
+  afterMerged,
+  listed = [],
+  alongside = {},
+}: {
+  profile: GitHubProfile;
+  locale: Locale;
+  afterMerged?: ReactNode;
+  /** Repos listed in the directory, `owner/name` in lower case: their box opens the repo's page here. */
+  listed?: string[];
+  /** Per repo, other members who got merged there. */
+  alongside?: Record<string, OssMember[]>;
+}) {
+  const { login, open, merged } = profile;
   const openShown = open.slice(0, 6);
   const mergedShown = merged.repos.slice(0, 8);
 
   return (
     <>
+      <section className="pf-section" aria-labelledby="gh-merged-heading">
+        <div className="pf-section-head">
+          <h2 id="gh-merged-heading">
+            {tx(locale, "Kontribusi", "Contributions")} <span className="pf-count">{merged.count}</span>
+          </h2>
+          {merged.count > 0 ? (
+            <a href={searchUrl(login, "merged")} target="_blank" rel="noreferrer">
+              {tx(locale, "Semua di GitHub", "All on GitHub")} ↗
+            </a>
+          ) : null}
+        </div>
+        <p className="pf-note gh-merged-note">
+          {tx(locale, "PR yang sudah di-merge ke project orang lain, per repo.", "Pull requests merged into other people's projects, by repo.")}
+        </p>
+        {mergedShown.length > 0 ? (
+          <ul className="gh-merged-grid">
+            {mergedShown.map((repo) => {
+              const [owner, name] = repo.repo.split("/");
+              const key = repo.repo.toLowerCase();
+              const others = alongside[key] ?? [];
+              const card = (
+                <>
+                  <span className="gh-merged-repo">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- the repository owner's GitHub picture */}
+                    <img src={ownerAvatar(repo.repo, 64)} alt="" width={28} height={28} loading="lazy" />
+                    <span>
+                      <small>{owner}</small>
+                      <strong>{name}</strong>
+                    </span>
+                  </span>
+                  <span className="gh-merged-count">
+                    <strong>{repo.merged}</strong> {tx(locale, "PR merged", repo.merged === 1 ? "PR merged" : "PRs merged")}
+                  </span>
+                  <span className="gh-merged-meta">
+                    {repo.stars > 0 ? <span>★ {compact(repo.stars)}</span> : null}
+                    <span>{tx(locale, `terakhir ${on(repo.lastMergedAt, locale)}`, `last ${on(repo.lastMergedAt, locale)}`)}</span>
+                  </span>
+                  {others.length > 0 ? (
+                    <span className="gh-merged-with">
+                      <span className="gh-merged-faces" aria-hidden="true">
+                        {others.slice(0, 3).map((member) => (
+                          // eslint-disable-next-line @next/next/no-img-element -- the member's GitHub picture
+                          <img key={member.username} src={`https://github.com/${encodeURIComponent(member.handle)}.png?size=40`} alt="" width={18} height={18} loading="lazy" />
+                        ))}
+                      </span>
+                      {tx(locale, "bareng", "with")} {others[0].name || others[0].handle}
+                      {others.length > 1 ? ` +${others.length - 1}` : ""}
+                    </span>
+                  ) : null}
+                </>
+              );
+              return (
+                <li key={repo.repo}>
+                  {listed.includes(key) ? (
+                    <Link href={repoPagePath(key)}>{card}</Link>
+                  ) : (
+                    <a href={`${repo.url}/pulls?q=${encodeURIComponent(`is:pr is:merged author:${login}`)}`} target="_blank" rel="noreferrer">
+                      {card}
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="oss-record-empty">{tx(locale, "Belum ada PR yang di-merge ke repo orang lain.", "No pull requests merged into other people's repos yet.")}</p>
+        )}
+        {merged.more ? (
+          <p className="pf-note">{tx(locale, `Dihitung dari ${merged.repos.reduce((sum, repo) => sum + repo.merged, 0)} PR terakhir.`, `Grouped from the latest ${merged.repos.reduce((sum, repo) => sum + repo.merged, 0)} pull requests.`)}</p>
+        ) : null}
+      </section>
+
+      {afterMerged}
+
       <section className="pf-section" aria-labelledby="gh-open-heading">
         <div className="pf-section-head">
           <h2 id="gh-open-heading">
-            {tx(locale, "PR berjalan", "Open pull requests")} <span className="pf-count">{open.length}</span>
+            {tx(locale, "Sedang direview", "In review")} <span className="pf-count">{open.length}</span>
           </h2>
           {open.length > openShown.length ? (
             <a href={searchUrl(login, "open")} target="_blank" rel="noreferrer">
@@ -31,7 +123,11 @@ export function GitHubSummary({ profile, locale }: { profile: GitHubProfile; loc
             {openShown.map((pr) => (
               <li key={pr.url}>
                 <a className="gh-row" href={pr.url} target="_blank" rel="noreferrer">
-                  <span className="gh-row-repo">{pr.repo}</span>
+                  <span className="gh-row-repo">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- the repository owner's GitHub picture */}
+                    <img src={ownerAvatar(pr.repo, 32)} alt="" width={16} height={16} loading="lazy" />
+                    {pr.repo}
+                  </span>
                   <span className="gh-row-title">{pr.title}</span>
                   <span className="gh-row-meta">
                     {pr.draft ? <span className="gh-draft">draft</span> : null}#{pr.number} · {on(pr.openedAt, locale)}
@@ -44,67 +140,6 @@ export function GitHubSummary({ profile, locale }: { profile: GitHubProfile; loc
           <p className="oss-record-empty">{tx(locale, "Tidak ada PR terbuka ke repo orang lain.", "No open pull requests to other people's repos.")}</p>
         )}
       </section>
-
-      <section className="pf-section" aria-labelledby="gh-merged-heading">
-        <div className="pf-section-head">
-          <h2 id="gh-merged-heading">
-            {tx(locale, "Sudah di-merge", "Merged")} <span className="pf-count">{merged.count}</span>
-          </h2>
-          {merged.count > 0 ? (
-            <a href={searchUrl(login, "merged")} target="_blank" rel="noreferrer">
-              {tx(locale, "Semua di GitHub", "All on GitHub")} ↗
-            </a>
-          ) : null}
-        </div>
-        {mergedShown.length > 0 ? (
-          <ul className="gh-rows">
-            {mergedShown.map((repo) => (
-              <li key={repo.repo}>
-                <a className="gh-row gh-row-repo-only" href={`${repo.url}/pulls?q=${encodeURIComponent(`is:pr is:merged author:${login}`)}`} target="_blank" rel="noreferrer">
-                  <span className="gh-row-repo">{repo.repo}</span>
-                  <span className="gh-row-meta">
-                    {repo.stars > 0 ? `★ ${compact(repo.stars)} · ` : ""}
-                    {tx(locale, `terakhir ${on(repo.lastMergedAt, locale)}`, `last ${on(repo.lastMergedAt, locale)}`)}
-                  </span>
-                  <strong className="gh-merged">{repo.merged}</strong>
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="oss-record-empty">{tx(locale, "Belum ada PR yang di-merge ke repo orang lain.", "No pull requests merged into other people's repos yet.")}</p>
-        )}
-        {merged.more ? (
-          <p className="pf-note">{tx(locale, `Dihitung dari ${merged.repos.reduce((sum, repo) => sum + repo.merged, 0)} PR terakhir.`, `Grouped from the latest ${merged.repos.reduce((sum, repo) => sum + repo.merged, 0)} pull requests.`)}</p>
-        ) : null}
-      </section>
-
-      {pinned.length > 0 ? (
-        <section className="pf-section" aria-labelledby="gh-pinned-heading">
-          <div className="pf-section-head">
-            <h2 id="gh-pinned-heading">{tx(locale, "Disematkan", "Pinned")}</h2>
-          </div>
-          <ul className="gh-pinned">
-            {pinned.map((repo) => (
-              <li key={repo.repo}>
-                <a href={repo.url} target="_blank" rel="noreferrer">
-                  <strong>{repo.repo}</strong>
-                  {repo.description ? <p>{repo.description}</p> : null}
-                  <span className="gh-pinned-meta">
-                    {repo.language ? (
-                      <span>
-                        <i style={{ background: repo.language.color || "var(--dx-muted)" }} aria-hidden="true" />
-                        {repo.language.name}
-                      </span>
-                    ) : null}
-                    {repo.stars > 0 ? <span>★ {compact(repo.stars)}</span> : null}
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
     </>
   );
 }

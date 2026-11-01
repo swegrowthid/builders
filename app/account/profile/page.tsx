@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { SiteFooter, SiteHeader } from "../../components/shell";
 import { ProfileForm, type EditableProfile } from "../../components/profile-form";
 import { GitHubForm } from "../../components/github-form";
+import { HiddenRepos } from "../../components/hidden-repos";
 import { UsernameForm } from "../../components/username-form";
 import { validateUsername } from "../../lib/profile";
-import { isUsernameFreeFor, listOssContributionsOf, listPeople } from "../../lib/data";
+import { isUsernameFreeFor, listGitHubRepoChoices, listOssContributionsOf, listPeople } from "../../lib/data";
 import { OssAddForm, OssRecordEmpty, OssRecordList } from "../../components/oss-record";
 import { githubHandle } from "../../lib/oss";
 import { termSuggestions } from "../../lib/people";
@@ -48,9 +49,10 @@ export default async function EditProfilePage({
 
   // Suggestions only. If the directory cannot be read the form still works —
   // it just stops proposing the words other people already use.
-  const [people, records] = await Promise.all([
+  const [people, records, repoChoices] = await Promise.all([
     readPublicly("profile term suggestions", () => listPeople(400), []),
     readPublicly("open source record in the editor", () => listOssContributionsOf(viewer.id), []),
+    viewer.githubActivityShown ? listGitHubRepoChoices(viewer.id) : null,
   ]);
   const ossStatus = typeof query.oss === "string" ? query.oss : "";
   const linkFailure = (["failed", "taken", "same"] as const).find((reason) => reason === query["github-link"]);
@@ -87,6 +89,7 @@ export default async function EditProfilePage({
           shown={viewer.githubActivityShown}
           linkFailure={linkFailure}
         />
+        {handle && repoChoices ? <HiddenRepos hidden={repoChoices.hidden} shown={repoChoices.shown} locale={locale} /> : null}
 
         {/* Next to GitHub on purpose: the two are a member's identity here, and
             the handle above is offered as the profile URL below. */}

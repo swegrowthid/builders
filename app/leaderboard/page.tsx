@@ -5,8 +5,8 @@ import Link from "@/app/components/responsive-link";
 import { SiteFooter, SiteHeader } from "../components/shell";
 import { Skeleton } from "../components/skeleton";
 import { BoardFilters } from "../components/board-filters";
-import { BoardInfo, ThisWeek, WeekDots } from "../components/week-dots";
-import { leaderboardIssueUrl, shareCard } from "../content";
+import { BoardInfo, MILESTONE_NAMES, Rank, ThisWeek, WeekDots } from "../components/week-dots";
+import { leaderboardIssueUrl } from "../content";
 import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
 import { site } from "../lib/site";
@@ -54,18 +54,11 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: "/leaderboard" },
-    openGraph: shareCard({ title, description, url: "/leaderboard" }),
+    openGraph: { title, description, url: "/leaderboard" },
   };
 }
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-/** Each milestone's name: [id, en]. */
-const MILESTONE_NAMES: Record<string, [string, string]> = {
-  "🌱": ["Mulai rutin", "Getting going"],
-  "🔥": ["Rutin", "Regular"],
-  "🏆": ["Satu musim penuh", "A whole season"],
-};
 
 /**
  * The leaderboard: one PR a week, a season at a time (see `seasonBoard`).
@@ -80,7 +73,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams?:
 
   return (
     <>
-      <SiteHeader returnTo="/leaderboard" />
+      <SiteHeader returnTo="/leaderboard" active="leaderboard" />
 
       <main id="main-content" className="ab-page lb-page">
         <Suspense fallback={<LeaderboardSkeleton locale={locale} />}>
@@ -182,6 +175,7 @@ async function LeaderboardBody({ query, locale }: { query: SearchParams; locale:
         season={season}
         state={!viewer ? "guest" : !viewerHandle ? "hidden" : "shown"}
         row={mine}
+        username={viewer?.username ?? ""}
       />
 
       <section className="ab-section" aria-labelledby="milestones-title">
@@ -262,11 +256,13 @@ function YourSeason({
   season,
   state,
   row,
+  username,
 }: {
   locale: Locale;
   season: Season;
   state: "guest" | "hidden" | "shown";
   row: ConsistencyRow | undefined;
+  username: string;
 }) {
   if (state === "guest") {
     return (
@@ -345,6 +341,11 @@ function YourSeason({
           {tx(locale, "Cari repo untuk PR minggu ini", "Find a repo for this week's PR")} <span aria-hidden="true">→</span>
         </Link>
       )}
+      {username ? (
+        <Link href={`/u/${encodeURIComponent(username)}#season-heading`}>
+          {tx(locale, "Lihat di profilmu", "See it on your profile")} <span aria-hidden="true">→</span>
+        </Link>
+      ) : null}
     </section>
   );
 }
@@ -385,7 +386,7 @@ function SeasonTable({
         <tbody>
           {rows.map(({ person, weeks, filled, streak, repos, prs }, index) => (
             <tr key={person.id} className={person.handle.toLowerCase() === viewerKey ? "is-mine" : undefined}>
-              <td>{["🥇", "🥈", "🥉"][index] ?? index + 1}</td>
+              <td><Rank place={index + 1} /></td>
               <td>
                 {/* eslint-disable-next-line @next/next/no-img-element -- the member's GitHub picture */}
                 <img className="lb-avatar" src={`https://github.com/${encodeURIComponent(person.handle)}.png?size=56`} alt="" width={28} height={28} />

@@ -69,7 +69,19 @@ export type CommitSummaryRow = {
  * they linked. The id is what is checked — a login can be renamed and then
  * taken by somebody else, the id cannot.
  */
-export type Member = { id: string; handle: string; githubId?: number };
+export type Member = {
+  id: string;
+  handle: string;
+  githubId?: number;
+  /** Repositories they keep off the site: `owner/name`, or `owner/*` (public.github_hidden_repos). */
+  hidden?: string[];
+};
+
+/** Whether `repo` is one the member hides: named, or under an owner they hide whole. */
+export function isHiddenRepo(repo: string, hidden: readonly string[] = []): boolean {
+  const owner = repo.slice(0, repo.indexOf("/"));
+  return hidden.some((pattern) => pattern === repo || pattern === `${owner}/*`);
+}
 
 /** What GitHub said about one member; `found: false` when the account does not exist. */
 export type MemberActivity =
@@ -344,7 +356,7 @@ export function parseResponse(
     for (const node of [...nodes, ...(second?.nodes ?? [])]) {
       if (!node) continue;
       const repo = publicRepo(node.repository);
-      if (!repo) continue;
+      if (!repo || isHiddenRepo(repo.key, member.hidden)) continue;
       if (seen.has(String(node.url))) continue;
       seen.add(String(node.url));
       const url = String(node.url ?? "");
@@ -365,7 +377,7 @@ export function parseResponse(
     for (const entry of user.contributionsCollection?.commitContributionsByRepository ?? []) {
       const repo = publicRepo(entry?.repository);
       const commits = Number(entry?.contributions?.totalCount ?? 0);
-      if (!repo || !isOwn(repo) || !Number.isInteger(commits) || commits <= 0) continue;
+      if (!repo || !isOwn(repo) || isHiddenRepo(repo.key, member.hidden) || !Number.isInteger(commits) || commits <= 0) continue;
       own.push({ repo: repo.key, commits });
       const latest = entry?.contributions?.nodes?.[0]?.occurredAt;
       if (typeof latest === "string" && (!lastCommitAt || latest > lastCommitAt)) lastCommitAt = latest;

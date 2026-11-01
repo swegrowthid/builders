@@ -11,10 +11,12 @@ type Place = { href: string; label: string; icon: HeaderIconName };
 /** The third tab: the visitor's profile, the way in, or — while the visitor is still being read — nothing yet. */
 type Account = { kind: "profile"; username: string; label: string } | { kind: "signin"; label: string } | undefined;
 
-/** Which tab the address belongs to: the activity home, the directory, or the visitor's own profile. */
+/** Which tab the address belongs to: the activity home, another place on the bar, or the visitor's own profile. */
 function tabFor(pathname: string, account: Account): string | null {
   if (pathname === "/") return "/";
-  if (pathname === "/directory" || pathname.startsWith("/directory/")) return "/directory";
+  for (const place of ["/leaderboard", "/directory"]) {
+    if (pathname === place || pathname.startsWith(`${place}/`)) return place;
+  }
   if (account?.kind === "profile" && (pathname === `/u/${account.username}` || pathname.startsWith("/account/profile"))) {
     return `/u/${account.username}`;
   }

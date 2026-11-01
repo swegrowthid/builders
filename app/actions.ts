@@ -833,6 +833,45 @@ export async function saveGitHub(_state: GitHubState, formData: FormData): Promi
   return { errors: {}, values, saved: true };
 }
 
+/**
+ * Keeps a repository off the site: `owner/name`, a GitHub link, or `owner/*`
+ * for a whole account or organisation. The database clears what was stored
+ * for it at once (20261105000000_github_hidden_repos.sql).
+ */
+export async function hideGitHubRepo(formData: FormData): Promise<void> {
+  const viewer = await currentViewer();
+  if (!viewer) return;
+  const raw = String(formData.get("repo") ?? "").trim();
+  const owner = raw.match(/^([A-Za-z0-9-]+)\/\*$/)?.[1];
+  const pattern = owner ? `${owner.toLowerCase()}/*` : parseRepoRef(raw);
+  if (!pattern) return;
+
+  const supabase = await requireSupabase();
+  const { error } = await supabase.from("github_hidden_repos").upsert({ user_id: viewer.id, pattern }, { onConflict: "user_id,pattern", ignoreDuplicates: true });
+  if (error) throw new Error(error.message);
+  githubReposChanged(viewer.username);
+}
+
+/** Shows a hidden repository again; the refresh function fetches it back within minutes. */
+export async function showGitHubRepo(formData: FormData): Promise<void> {
+  const viewer = await currentViewer();
+  if (!viewer) return;
+  const pattern = String(formData.get("pattern") ?? "");
+
+  const supabase = await requireSupabase();
+  const { error } = await supabase.from("github_hidden_repos").delete().eq("user_id", viewer.id).eq("pattern", pattern);
+  if (error) throw new Error(error.message);
+  githubReposChanged(viewer.username);
+}
+
+function githubReposChanged(username: string): void {
+  updateTag(tags.activity);
+  updateTag(tags.oss);
+  updateTag(tags.people);
+  updateTag(tags.person(username));
+  revalidatePath("/account/profile");
+}
+
 export type UsernameState = {
   error?: string;
   username: string;

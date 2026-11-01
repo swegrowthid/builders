@@ -13,8 +13,9 @@ import { activityPath, readActivityFilters, readActivityPage } from "../lib/acti
 import { listActivityReactions, listGitHubActivity, listOwnPullRequests, listProductFeed, listProjects } from "../lib/data";
 import { summarizeReactions } from "../lib/reactions";
 import { currentViewer } from "../lib/session";
-import { activityStats, dayKey, ownBoards, type GitHubActivityEntry, type PullRequestEntry } from "../lib/github-activity";
+import { activityStats, dayKey, inScope, inWindow, ownBoards, seasonOf, type GitHubActivityEntry, type PullRequestEntry } from "../lib/github-activity";
 import { readPublicly } from "../lib/public-read";
+import { listedRepos } from "../lib/directory-read";
 import { currentLocale } from "../lib/locale-server";
 import { tx, type Locale } from "../lib/locale";
 import { githubHandle } from "../lib/oss";
@@ -169,29 +170,33 @@ async function ActivityBody({ query, locale }: { query: SearchParams; locale: Lo
   // Waiting for the request keeps the feed in the server's first answer,
   // filtered as the address asks; from then on it filters in the browser.
   await query;
-  const [result, own, reactionRows, viewer] = await Promise.all([
+  const [result, own, reactionRows, viewer, listed] = await Promise.all([
     readPublicly<GitHubActivityEntry[]>("github activity", listGitHubActivity, []),
     readPublicly<PullRequestEntry[]>("own pull requests", listOwnPullRequests, []),
     readPublicly("activity reactions", listActivityReactions, []),
     currentViewer(),
+    // The repos with a page here: the feed links them there rather than to GitHub.
+    listedRepos(locale),
   ]);
-  const stats = activityStats(result.value);
   const today = dayKey(new Date(), "Asia/Jakarta");
+  // This season's contributions, the board's default, so the numbers name one period.
+  const season = seasonOf(today);
+  const stats = activityStats(inWindow(inScope(result.value, "external"), season));
 
   return (
     <>
       <Heading locale={locale}>
         <dl className="dx-head-stats">
           <div>
-            <dt>{tx(locale, "Member aktif", "Active members")}</dt>
+            <dt>{tx(locale, "Member aktif musim ini", "Active this season")}</dt>
             <dd>{stats.people}</dd>
           </div>
           <div>
-            <dt>{tx(locale, "PR merged", "PRs merged")}</dt>
+            <dt>{tx(locale, "PR merged musim ini", "PRs merged this season")}</dt>
             <dd>{stats.merged}</dd>
           </div>
           <div>
-            <dt>{tx(locale, "Repo dikontribusi", "Repos contributed to")}</dt>
+            <dt>{tx(locale, "Repo musim ini", "Repos this season")}</dt>
             <dd>{stats.repos}</dd>
           </div>
         </dl>
@@ -206,6 +211,7 @@ async function ActivityBody({ query, locale }: { query: SearchParams; locale: Lo
         locale={locale}
         unavailable={result.unavailable}
         viewerHandle={viewer?.githubActivityShown ? githubHandle(viewer.github) || null : null}
+        listed={listed}
       />
     </>
   );

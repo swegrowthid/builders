@@ -9,7 +9,8 @@
  *   - by pg_cron every half hour, with an empty body: every member who has
  *     agreed to be shown (profiles.github_activity_shown) and has linked a
  *     GitHub account (profiles.github_id, see 20261103000000_linked_github.sql);
- *   - by a trigger when somebody changes either of those, with
+ *   - by a trigger when somebody changes either of those, or shows a hidden
+ *     repository again (20261105000000_github_hidden_repos.sql), with
  *     `{ "users": ["<uuid>"] }`: just them, now.
  *
  * Nobody else is asked about at all: what has not been agreed to is not
@@ -84,11 +85,20 @@ async function refresh(asked: string[] | null): Promise<void> {
   const { data, error } = await request;
   if (error) throw new Error(error.message);
 
+  const ids = (data ?? []).map((row) => row.id);
+  const { data: hiddenRows, error: hiddenError } = ids.length > 0
+    ? await supabase.from("github_hidden_repos").select("user_id, pattern").in("user_id", ids)
+    : { data: [], error: null };
+  // Without the list, nothing is fetched: a hidden repository must not come back.
+  if (hiddenError) throw new Error(hiddenError.message);
+  const hidden = new Map<string, string[]>();
+  for (const row of hiddenRows ?? []) hidden.set(row.user_id, [...(hidden.get(row.user_id) ?? []), row.pattern]);
+
   const members: Member[] = [];
   for (const row of data ?? []) {
     const handle = githubHandle(String(row.github ?? ""));
     const githubId = Number(row.github_id);
-    if (handle && Number.isSafeInteger(githubId)) members.push({ id: row.id, handle, githubId });
+    if (handle && Number.isSafeInteger(githubId)) members.push({ id: row.id, handle, githubId, hidden: hidden.get(row.id) ?? [] });
   }
 
   // Somebody asked about who took their yes back, or has no GitHub account

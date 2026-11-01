@@ -20,17 +20,21 @@ import {
   dayKey,
   groupByDay,
   inScope,
+  inWindow,
   repoSummaries,
   REPO_ORDERS,
   ownerAvatar,
   queryActivity,
   repoName,
+  BOARD_COUNTS,
   BOARD_SPANS,
   boardEntries,
   SUMMARY_DAYS,
   boardWindow,
   isBoardSpan,
+  isBoardCount,
   seasonBoard,
+  type BoardCount,
   type BoardSpan,
   type BoardWindow,
   type OwnBoards,
@@ -43,7 +47,8 @@ import {
 } from "../lib/github-activity";
 import type { ReactionCount } from "../lib/reactions";
 import { tx, type Locale } from "../lib/locale";
-import { BoardInfo, ThisWeek, WeekDots } from "./week-dots";
+import { BoardInfo, Rank, ThisWeek, WeekDots } from "./week-dots";
+import { repoPagePath } from "../lib/directory";
 
 const PAGE_SIZE = 20;
 /** Repositories shown under the leaderboard before "See all": a handful, not the list. */
@@ -73,6 +78,7 @@ export function ActivityView({
   unavailable,
   viewerHandle = null,
   ownBoards,
+  listed = [],
 }: {
   entries: GitHubActivityEntry[];
   /** Per pull request URL, or per summary key. */
@@ -86,8 +92,11 @@ export function ActivityView({
   viewerHandle?: string | null;
   /** The own-repos boards, from the server (see `ownBoards`). */
   ownBoards?: OwnBoards;
+  /** The repos the directory lists, as `owner/name` in lower case: those have a page here. */
+  listed?: string[];
 }) {
   const searchParams = useSearchParams();
+  const withPage = useMemo(() => new Set(listed), [listed]);
   const fromUrl = readActivityFilters(searchParams);
   // What is typed is held here and written to the address once typing rests:
   // the list follows every key, the history does not.
@@ -127,13 +136,13 @@ export function ActivityView({
   };
 
   const current = { ...fromUrl, q: q.slice(0, 100) };
-  // Everything else narrows within the scope showing.
-  const scoped = useMemo(() => inScope(entries, current.scope), [entries, current.scope]);
+  const boardWeeks = useMemo(() => boardWindow(today, current.weeks), [today, current.weeks]);
+  // Everything else narrows within the scope and the weeks showing.
+  const scoped = useMemo(() => inWindow(inScope(entries, current.scope), boardWeeks), [entries, current.scope, boardWeeks]);
   const people = useMemo(() => activityPeople(entries), [entries]);
   // The board counts contributions or PRs to their own repos; every PR
   // opened, or only those merged (see `boardChoice`).
   const choice = boardChoice(current);
-  const boardWeeks = useMemo(() => boardWindow(today, current.weeks), [today, current.weeks]);
   const board = useMemo(
     () =>
       choice.of === "own"
@@ -163,6 +172,7 @@ export function ActivityView({
 
   return (
     <InstantNav navigate={navigate}>
+      <ActivityControls choice={choice} current={current} locale={locale} navigate={navigate} />
       <div className="dx-layout ax-layout">
         {/* The left column: the leaderboard, and under it where the PRs went.
             On a phone the column comes apart: the board above the feed, the
@@ -175,10 +185,9 @@ export function ActivityView({
             current={current}
             viewerHandle={viewerHandle}
             locale={locale}
-            navigate={navigate}
           />
 
-          <RepoList entries={scoped} current={current} locale={locale} />
+          <RepoList entries={scoped} current={current} listed={withPage} locale={locale} />
         </div>
 
         <section ref={results} className="dx-results" aria-labelledby="feed-title">
@@ -249,19 +258,19 @@ export function ActivityView({
             </div>
           ) : (
             <div className="ax-timeline">
-              {groupByDay(shown).map(({ day, entries: onDay }) => (
+              {timelineGroups(shown, today, locale).map(({ day, title, entries: onDay }) => (
                 <section key={day} className="ax-day" aria-labelledby={`day-${day}`}>
                   <h2 id={`day-${day}`} className="ax-day-title">
-                    {dayLabel(day, today, locale)}
+                    {title}
                   </h2>
                   <ol className="ax-events">
                     {onDay.map((entry) => (
                       <li key={entry.key} className="ax-event">
                         <Avatar handle={entry.person.handle} size={32} />
                         {entry.kind === "pull_request" ? (
-                          <PullRequestEvent entry={entry} locale={locale} reactions={reactions[entry.url] ?? []} viewerName={viewerName} />
+                          <PullRequestEvent entry={entry} listed={withPage.has(entry.repo)} locale={locale} reactions={reactions[entry.url] ?? []} viewerName={viewerName} />
                         ) : (
-                          <CommitSummaryEvent entry={entry} locale={locale} reactions={reactions[entry.key] ?? []} viewerName={viewerName} />
+                          <CommitSummaryEvent entry={entry} today={today} locale={locale} reactions={reactions[entry.key] ?? []} viewerName={viewerName} />
                         )}
                       </li>
                     ))}
@@ -312,7 +321,17 @@ const FACES_SHOWN = 3;
  * people a pill away. Each repo narrows the feed to it; long names stay on one
  * line, whole in the tooltip.
  */
-function RepoList({ entries, current, locale }: { entries: GitHubActivityEntry[]; current: ActivityFilters; locale: Locale }) {
+function RepoList({
+  entries,
+  current,
+  listed,
+  locale,
+}: {
+  entries: GitHubActivityEntry[];
+  current: ActivityFilters;
+  listed: ReadonlySet<string>;
+  locale: Locale;
+}) {
   const [order, setOrder] = useState<RepoOrder>("recent");
   const [expanded, setExpanded] = useState(false);
   const repos = useMemo(() => repoSummaries(entries, order), [entries, order]);
@@ -368,6 +387,13 @@ function RepoList({ entries, current, locale }: { entries: GitHubActivityEntry[]
                 </span>
                 <span className="ax-where-count">{prs}</span>
               </InstantLink>
+              {/* The row filters the feed; the repo it is filtered to also
+                  offers its page here, when the directory lists it. */}
+              {on && listed.has(repo) ? (
+                <Link className="ax-where-page" href={repoPagePath(repo)}>
+                  {tx(locale, "Halaman repo", "Repo page")} <span aria-hidden="true">→</span>
+                </Link>
+              ) : null}
             </li>
           );
         })}
@@ -388,15 +414,12 @@ function RepoList({ entries, current, locale }: { entries: GitHubActivityEntry[]
 
 /** How many rows the board shows here; the whole of it is on /leaderboard. */
 const BOARD_SHOWN = 5;
-const MEDALS = ["🥇", "🥈", "🥉"];
 
 /**
- * The left column: who keeps at it — weeks with a PR (see `seasonBoard`),
- * and how many PRs — over the season or the last few weeks, the top few with
- * the whole board, streaks and all, a link away on /leaderboard. What it
- * counts is the card's choice (see `boardChoice`). Each row also narrows the feed beside it
- * to that person. A signed-in member outside the shown rows still sees their
- * own.
+ * The left column: who keeps at it (see `seasonBoard`), the top few with the
+ * whole board a link away on /leaderboard. A name opens their profile; the
+ * funnel beside it narrows the feed to them. A signed-in member outside the shown rows still
+ * sees their own.
  */
 function Leaderboard({
   rows: all,
@@ -405,31 +428,18 @@ function Leaderboard({
   current,
   viewerHandle,
   locale,
-  navigate,
 }: {
   rows: ConsistencyRow[];
   choice: LeaderboardChoice;
   /** The weeks the board counts: the season's, or the last four or eight. */
   boardWeeks: BoardWindow;
   current: ActivityFilters;
-  /** Moves the page to another address without a reload: the pill's choices. */
-  navigate: (href: string) => void;
   viewerHandle: string | null;
   locale: Locale;
 }) {
   const rows = all.slice(0, BOARD_SHOWN);
   const viewerKey = viewerHandle?.toLowerCase() ?? "";
   const viewerRank = viewerKey ? all.findIndex(({ person }) => person.handle.toLowerCase() === viewerKey) : -1;
-  const spanLabels: Record<BoardSpan, string> = {
-    "4": tx(locale, "4 minggu", "4 weeks"),
-    "8": tx(locale, "8 minggu", "8 weeks"),
-    // Short: the season's months are in the ⓘ.
-    season: tx(locale, "musim ini", "this season"),
-  };
-  const countName =
-    choice.count === "merged"
-      ? tx(locale, "Menghitung PR merged saja. Ganti ke semua PR yang dibuka", "Counting merged PRs only. Switch to every PR opened")
-      : tx(locale, "Menghitung semua PR yang dibuka. Ganti ke PR merged saja", "Counting every PR opened. Switch to merged PRs only");
   const score = ({ filled }: ConsistencyRow) => `${filled}/${boardWeeks.current + 1}`;
   const where = choice.of === "own" ? tx(locale, "repo sendiri", "own repos") : tx(locale, "repo orang lain", "other people's repos");
 
@@ -437,69 +447,9 @@ function Leaderboard({
     <aside className="ax-board tone-done" aria-labelledby="board-title">
       <div className="ax-board-head">
         <h2 id="board-title">
-          <span aria-hidden="true">🏆</span> Weeks of contribution
-          <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} streak={false} locale={locale} />
+          <span aria-hidden="true">🏆</span> Board of contribution
+          <BoardInfo weeks={boardWeeks} span={current.weeks} of={choice.of} count={choice.count} locale={locale} />
         </h2>
-        {/* Every choice of the page in one row under the board's name —
-            whose repos and which weeks, pills that open a native picker —
-            and the PR button; local or global is on /leaderboard. The feed
-            beside follows them.
-            A real GET form, so it works before the script does. */}
-        <form className="ax-board-pills" action="/">
-          {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
-          {current.repo ? <input type="hidden" name="repo" value={current.repo} /> : null}
-          {current.q ? <input type="hidden" name="q" value={current.q} /> : null}
-          {current.count !== "opened" ? <input type="hidden" name="count" value={current.count} /> : null}
-          <label>
-            <span className="sr-only">{tx(locale, "Repo siapa", "Whose repos")}</span>
-            <select
-              name="scope"
-              className={`ax-pill ${choice.of !== "external" ? "is-set" : ""}`}
-              value={choice.of}
-              onChange={(event) =>
-                navigate(activityPath({ ...current, scope: event.target.value === "own" ? "own" : "external", member: "", repo: "" }))
-              }
-            >
-              <option value="external">{tx(locale, "kontribusi", "contributions")}</option>
-              <option value="own">{tx(locale, "repo sendiri", "own repos")}</option>
-            </select>
-          </label>
-          <label>
-            <span className="sr-only">{tx(locale, "Minggu yang dihitung", "Weeks counted")}</span>
-            <select
-              name="weeks"
-              className={`ax-pill ${current.weeks !== "season" ? "is-set" : ""}`}
-              value={current.weeks}
-              onChange={(event) => {
-                const weeks = event.target.value;
-                navigate(activityPath({ ...current, weeks: isBoardSpan(weeks) ? weeks : "season" }));
-              }}
-            >
-              {BOARD_SPANS.map((span) => (
-                <option key={span} value={span}>
-                  {spanLabels[span]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {/* Which PRs fill a week, as the feed draws them: every one opened
-              (green), or only the merged (purple). One button showing the
-              count in use; pressing it switches to the other. A link, so it
-              works before the script does. */}
-          {choice.of === "own" ? null : (
-            <InstantLink
-              className="ax-count"
-              href={activityPath({ ...current, count: choice.count === "merged" ? "opened" : "merged" })}
-              aria-label={countName}
-              title={countName}
-            >
-              <PullRequestIcon merged={choice.count === "merged"} />
-            </InstantLink>
-          )}
-          <noscript>
-            <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
-          </noscript>
-        </form>
       </div>
 
       {rows.length === 0 ? (
@@ -513,18 +463,14 @@ function Leaderboard({
       ) : (
         <ol className={`ax-board-list is-${choice.count}`}>
           {rows.map((row, index) => {
-            const { person, weeks, prs } = row;
+            const { person, weeks, prs, streak } = row;
             const on = person.handle.toLowerCase() === current.member.toLowerCase();
             const mine = person.handle.toLowerCase() === viewerKey;
             return (
               <li key={person.id} className={`${on ? "is-active" : ""} ${mine ? "is-mine" : ""}`}>
-                <InstantLink
-                  href={activityPath({ ...current, member: on ? "" : person.handle })}
-                  aria-current={on ? "true" : undefined}
-                  title={on ? tx(locale, "Tampilkan semua orang", "Show everyone") : tx(locale, "Tampilkan aktivitasnya saja", "Show only their activity")}
-                >
+                <Link className="ax-board-person" href={`/u/${encodeURIComponent(person.username)}`}>
                   <span className="ax-board-rank" aria-label={tx(locale, `Peringkat ${index + 1}`, `Rank ${index + 1}`)}>
-                    {MEDALS[index] ?? index + 1}
+                    <Rank place={index + 1} />
                   </span>
                   <Avatar handle={person.handle} size={24} />
                   <span className="ax-board-who">
@@ -532,11 +478,21 @@ function Leaderboard({
                     <span className="ax-board-meta">
                       <WeekDots weeks={weeks} current={boardWeeks.current} slim locale={locale} />
                       <span>{tx(locale, `${prs} PR`, `${prs} ${prs === 1 ? "PR" : "PRs"}`)}</span>
+                      {streak > 0 ? <span aria-label={tx(locale, `streak ${streak} minggu`, `${streak}-week streak`)}>🔥 {streak}</span> : null}
                     </span>
                   </span>
                   <span className="ax-board-score">
                     <strong>{score(row)}</strong>
                   </span>
+                </Link>
+                <InstantLink
+                  className="ax-board-filter"
+                  href={activityPath({ ...current, member: on ? "" : person.handle })}
+                  aria-current={on ? "true" : undefined}
+                  aria-label={on ? tx(locale, "Tampilkan semua orang", "Show everyone") : tx(locale, `Feed ${person.name || person.handle} saja`, `Only ${person.name || person.handle} in the feed`)}
+                  title={on ? tx(locale, "Tampilkan semua orang", "Show everyone") : tx(locale, "Feed orang ini saja", "Only them in the feed")}
+                >
+                  <FilterIcon />
                 </InstantLink>
               </li>
             );
@@ -546,13 +502,25 @@ function Leaderboard({
 
       <ThisWeek
         className="ax-board-week"
+        moreHref={leaderboardPath(choice)}
         names={all.filter(({ weeks }) => weeks[boardWeeks.current]).map(({ person }) => person.name || `@${person.handle}`)}
         locale={locale}
       />
 
       {viewerRank >= BOARD_SHOWN ? (
+        <p className={`ax-board-you is-${choice.count}`}>
+          <Link href={`/u/${encodeURIComponent(all[viewerRank].person.username)}#season-heading`}>
+            {tx(locale, "Kamu", "You")} <strong>#{viewerRank + 1}</strong>
+          </Link>
+          <WeekDots weeks={all[viewerRank].weeks} current={boardWeeks.current} slim locale={locale} />
+          <span>{score(all[viewerRank])}</span>
+          {all[viewerRank].streak > 0 ? <span>🔥 {all[viewerRank].streak}</span> : null}
+        </p>
+      ) : viewerKey && viewerRank < 0 ? (
         <p className="ax-board-you">
-          {tx(locale, "Kamu", "You")}: <strong>#{viewerRank + 1}</strong> · {score(all[viewerRank])}
+          {choice.of === "external"
+            ? tx(locale, "Kamu belum punya PR ke repo orang lain di minggu-minggu ini. PR ke repo sendiri ada di pilihan “repo sendiri”.", "You have no PRs to other people's repos in these weeks. PRs to your own repos are under “own repos”.")
+            : tx(locale, "Kamu belum punya PR ke repo sendiri di minggu-minggu ini.", "You have no PRs to your own repos in these weeks.")}
         </p>
       ) : null}
 
@@ -564,6 +532,101 @@ function Leaderboard({
         </Link>
       </p>
     </aside>
+  );
+}
+
+/** The page's choices, above both columns since they set both. A GET form, so it works before the script does. */
+function ActivityControls({
+  choice,
+  current,
+  locale,
+  navigate,
+}: {
+  choice: LeaderboardChoice;
+  current: ActivityFilters;
+  locale: Locale;
+  navigate: (href: string) => void;
+}) {
+  const spanLabels: Record<BoardSpan, string> = {
+    season: tx(locale, "musim ini", "this season"),
+    "4": tx(locale, "4 minggu terakhir", "last 4 weeks"),
+    "8": tx(locale, "8 minggu terakhir", "last 8 weeks"),
+  };
+  const countLabels: Record<BoardCount, string> = {
+    opened: tx(locale, "semua PR yang dibuka", "every PR opened"),
+    merged: tx(locale, "PR merged saja", "merged PRs only"),
+  };
+
+  return (
+    <form className="ax-controls" action="/">
+      {current.member ? <input type="hidden" name="member" value={current.member} /> : null}
+      {current.repo ? <input type="hidden" name="repo" value={current.repo} /> : null}
+      {current.q ? <input type="hidden" name="q" value={current.q} /> : null}
+      <span className="ax-controls-label">{tx(locale, "Menampilkan", "Showing")}</span>
+      <label>
+        <span className="sr-only">{tx(locale, "Repo siapa", "Whose repos")}</span>
+        <select
+          name="scope"
+          className={`lb-filter ${choice.of !== "external" ? "is-set" : ""}`}
+          value={choice.of}
+          onChange={(event) =>
+            navigate(activityPath({ ...current, scope: event.target.value === "own" ? "own" : "external", member: "", repo: "" }))
+          }
+        >
+          <option value="external">{tx(locale, "kontribusi", "contributions")}</option>
+          <option value="own">{tx(locale, "repo sendiri", "own repos")}</option>
+        </select>
+      </label>
+      <label>
+        <span className="sr-only">{tx(locale, "Rentang minggu", "Weeks")}</span>
+        <select
+          name="weeks"
+          className={`lb-filter ${current.weeks !== "season" ? "is-set" : ""}`}
+          value={current.weeks}
+          onChange={(event) => {
+            const weeks = event.target.value;
+            navigate(activityPath({ ...current, weeks: isBoardSpan(weeks) ? weeks : "season" }));
+          }}
+        >
+          {BOARD_SPANS.map((span) => (
+            <option key={span} value={span}>
+              {spanLabels[span]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {choice.of === "own" ? null : (
+        <label>
+          <span className="sr-only">{tx(locale, "PR yang dihitung", "Which PRs")}</span>
+          <select
+            name="count"
+            className={`lb-filter ${choice.count !== "opened" ? "is-set" : ""}`}
+            value={choice.count}
+            onChange={(event) => {
+              const count = event.target.value;
+              navigate(activityPath({ ...current, count: isBoardCount(count) ? count : "opened" }));
+            }}
+          >
+            {BOARD_COUNTS.map((count) => (
+              <option key={count} value={count}>
+                {countLabels[count]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <noscript>
+        <button type="submit">{tx(locale, "Terapkan", "Apply")}</button>
+      </noscript>
+    </form>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path d="M2 3h12l-4.5 5.5V13l-3-1.5v-3z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -586,6 +649,31 @@ function Avatar({ handle, size }: { handle: string; size: number }) {
   return <img className="ax-avatar" src={`https://github.com/${encodeURIComponent(handle)}.png?size=${size * 2}`} alt="" width={size} height={size} loading="lazy" />;
 }
 
+const clockFormat = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" });
+
+/** "14.05" in Jakarta: the same on the server and in any browser. */
+function clock(at: string): string {
+  return clockFormat.format(new Date(at));
+}
+
+/**
+ * The timeline's sections. A pull request sits under the day it happened; a
+ * commit summary covers the last SUMMARY_DAYS, so the summaries share one
+ * section under that name instead of the day of their latest commit — under
+ * "Today" they read as if all of it happened today.
+ */
+function timelineGroups(entries: GitHubActivityEntry[], today: string, locale: Locale) {
+  const summaries = entries.filter((entry) => entry.kind === "commit_summary");
+  const days = groupByDay(entries.filter((entry) => entry.kind !== "commit_summary")).map(({ day, entries: onDay }) => ({
+    day,
+    title: dayLabel(day, today, locale),
+    entries: onDay,
+  }));
+  return summaries.length > 0
+    ? [{ day: "summaries", title: tx(locale, `${SUMMARY_DAYS} hari terakhir`, `Last ${SUMMARY_DAYS} days`), entries: summaries }, ...days]
+    : days;
+}
+
 /** "Hari ini", "Kemarin", or the date, for a day key from groupByDay. */
 function dayLabel(day: string, today: string, locale: Locale): string {
   if (day === today) return tx(locale, "Hari ini", "Today");
@@ -603,13 +691,19 @@ function Who({ entry }: { entry: GitHubActivityEntry }) {
   );
 }
 
-function RepoLink({ repo }: { repo: string }) {
-  return (
-    <a className="ax-repo" href={`https://github.com/${repo}`} target="_blank" rel="noopener noreferrer">
+/** A repo the directory lists opens its page here; any other, GitHub. */
+function RepoLink({ repo, listed }: { repo: string; listed: boolean }) {
+  const content = (
+    <>
       {/* eslint-disable-next-line @next/next/no-img-element -- the repository owner's GitHub picture */}
       <img src={ownerAvatar(repo, 32)} alt="" width={14} height={14} loading="lazy" />
       {repo}
-    </a>
+    </>
+  );
+  return listed ? (
+    <Link className="ax-repo" href={repoPagePath(repo)}>{content}</Link>
+  ) : (
+    <a className="ax-repo" href={`https://github.com/${repo}`} target="_blank" rel="noopener noreferrer">{content}</a>
   );
 }
 
@@ -619,11 +713,14 @@ function RepoLink({ repo }: { repo: string }) {
  */
 function PullRequestEvent({
   entry,
+  listed,
   locale,
   reactions,
   viewerName,
 }: {
   entry: PullRequestEntry;
+  /** The directory lists the repo, so it has a page here. */
+  listed: boolean;
   locale: Locale;
   reactions: ReactionCount[];
   viewerName: string | null;
@@ -652,10 +749,11 @@ function PullRequestEvent({
   return (
     <div className="ax-event-body">
       <p className="ax-event-line">
-        <Who entry={entry} /> {what} <RepoLink repo={entry.repo} />
-        <span className="ax-time">
-          <RelativeTime value={entry.at} locale={locale} />
-        </span>
+        <Who entry={entry} /> {what} <RepoLink repo={entry.repo} listed={listed} />
+        {/* The day is the group's heading; the time is enough here. */}
+        <time className="ax-time" dateTime={entry.at}>
+          {clock(entry.at)}
+        </time>
       </p>
       <ul className="ax-prs">{shown.map(item)}</ul>
       {folded.length > 0 ? (
@@ -672,11 +770,13 @@ function PullRequestEvent({
 /** Work on one's own repositories — commits and merged PRs — one event per person. */
 function CommitSummaryEvent({
   entry,
+  today,
   locale,
   reactions,
   viewerName,
 }: {
   entry: CommitSummaryEntry;
+  today: string;
   locale: Locale;
   reactions: ReactionCount[];
   viewerName: string | null;
@@ -688,7 +788,10 @@ function CommitSummaryEvent({
       <p className="ax-event-line">
         <Who entry={entry} />{" "}
         {ownWork(entry, locale)}
-        <span className="ax-time">{tx(locale, `${SUMMARY_DAYS} hari terakhir`, `last ${SUMMARY_DAYS} days`)}</span>
+        {/* The section already says how far back it goes; here, how recent the latest of it is. */}
+        <time className="ax-time" dateTime={entry.at}>
+          {tx(locale, "terakhir", "latest")} {latestLabel(entry.at, today, locale)}
+        </time>
       </p>
       <ul className="ax-repos">
         {named.map((repo) => (
@@ -704,6 +807,18 @@ function CommitSummaryEvent({
       <ReactionBar url={entry.key} initial={reactions} viewerName={viewerName} />
     </div>
   );
+}
+
+/**
+ * "hari ini", "kemarin", or the date: the day of a summary's latest commit or
+ * merge. No clock: GitHub dates a commit contribution by its day alone, so a
+ * time would be made up.
+ */
+function latestLabel(at: string, today: string, locale: Locale): string {
+  const day = dayKey(at, "Asia/Jakarta");
+  const label = dayLabel(day, today, locale);
+  const recent = day === today || label === tx(locale, "Kemarin", "Yesterday");
+  return recent ? label.toLowerCase() : label;
 }
 
 /** "made 205 commits and merged 40 pull requests in 7 of their own repos", leaving out what is zero. */

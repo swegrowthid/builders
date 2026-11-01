@@ -1656,6 +1656,34 @@ export async function listOssContributionsOf(userId: string): Promise<OssContrib
   return (await readOssRows(userId)).map(({ repo, relation, manual, verified }) => ({ repo, relation, manual, verified }));
 }
 
+/**
+ * The caller's own GitHub repositories, for choosing which to keep off the
+ * site: those they hide, and those shown now. Not cached: the hidden list is
+ * readable by its owner only.
+ */
+export async function listGitHubRepoChoices(userId: string): Promise<{ hidden: string[]; shown: string[] }> {
+  const supabase = await getSupabase();
+  if (!supabase) return { hidden: [], shown: [] };
+
+  const [hidden, prs, summary] = await Promise.all([
+    supabase.from("github_hidden_repos").select("pattern").eq("user_id", userId).order("pattern"),
+    supabase.from("github_pull_requests").select("repo").eq("user_id", userId),
+    supabase.from("github_commit_summaries").select("repos").eq("user_id", userId).maybeSingle(),
+  ]);
+  const error = hidden.error ?? prs.error ?? summary.error;
+  if (error) {
+    if (!isMissingTable(error)) throw new Error(error.message);
+    warnMissingTable("github_hidden_repos");
+    return { hidden: [], shown: [] };
+  }
+
+  const summaryRepos = ((summary.data?.repos ?? []) as { repo: string }[]).map(({ repo }) => repo);
+  return {
+    hidden: (hidden.data ?? []).map(({ pattern }) => pattern),
+    shown: [...new Set([...(prs.data ?? []).map(({ repo }) => repo), ...summaryRepos])].sort(),
+  };
+}
+
 const CATALOGUE_COLUMNS =
   "id, repo, list, reasons, why, summary, indonesian, starter_label, status, submitted_by, created_at";
 

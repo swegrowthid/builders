@@ -1,5 +1,21 @@
+import Link from "@/app/components/responsive-link";
 import { seasonLabel, seasonOf, type BoardCount, type BoardOf, type BoardSpan, type BoardWindow } from "../lib/github-activity";
 import { tx, type Locale } from "../lib/locale";
+
+/** Each milestone's name: [id, en]. */
+export const MILESTONE_NAMES: Record<string, [string, string]> = {
+  "🌱": ["Mulai rutin", "Getting going"],
+  "🔥": ["Rutin", "Regular"],
+  "🏆": ["Satu musim penuh", "A whole season"],
+};
+
+/**
+ * A place on a board: the top three on gold, silver and bronze, the rest a
+ * plain number in the same spot — one column, whatever the place.
+ */
+export function Rank({ place }: { place: number }) {
+  return <span className={`board-rank${place <= 3 ? ` is-${place}` : ""}`}>{place}</span>;
+}
 
 /**
  * A board's weeks as dots, oldest first: filled when a PR was opened in it,
@@ -55,57 +71,28 @@ export function BoardInfo({
         i
       </button>
       <span className="info-tip-body" role="tooltip">
-        {locale === "id" ? (
+        {countedRule(of, count, locale)}
+        <br />
+        <b>x/{soFar}</b>{" "}
+        {span === "season"
+          ? tx(locale, `= minggu yang ada PR-nya, dari ${soFar} minggu musim ini (${months}).`, `= weeks with a PR, of the season's ${soFar} so far (${months}).`)
+          : tx(locale, `= minggu yang ada PR-nya, dari ${total} minggu terakhir.`, `= weeks with a PR, of the last ${total}.`)}
+        {streak ? (
           <>
-            {countedRule(of, count, locale)}
             <br />
-            {places ? (
-              <>
-                <b>Lokal</b> = proyek member komunitas atau repo dengan maintainer Indonesia; <b>global</b> = sisanya.
-                <br />
-              </>
-            ) : null}
-            <b>x/{soFar}</b>{" "}
-            {span === "season"
-              ? `= minggu yang ada PR-nya, dari ${soFar} minggu musim ini yang sudah berjalan (musim ${months}, ${total} minggu).`
-              : `= minggu yang ada PR-nya, dari ${total} minggu terakhir termasuk minggu ini.`}{" "}
-            {soFar}/{soFar} berarti nggak pernah absen.
-            {streak ? (
-              <>
-                <br />
-                <b>🔥</b> = streak, minggu berturut-turut ada PR.
-              </>
-            ) : null}
-            <br />
-            <b>Bar</b> = satu kotak per minggu, {span === "season" ? "sepanjang musim" : `${total} minggu terakhir`}; berwarna kalau ada PR,
-            minggu ini paling akhir{span === "season" ? ", yang pudar belum tiba" : ""}.
+            <b>🔥</b> = {tx(locale, "minggu berturut-turut ada PR.", "weeks in a row with a PR.")}
           </>
-        ) : (
+        ) : null}
+        {places ? (
           <>
-            {countedRule(of, count, locale)}
             <br />
-            {places ? (
-              <>
-                <b>Local</b> = a community member&apos;s project or a repo with Indonesian maintainers; <b>global</b> = the rest.
-                <br />
-              </>
-            ) : null}
-            <b>x/{soFar}</b>{" "}
-            {span === "season"
-              ? `= weeks with a PR, out of the season's ${soFar} weeks so far (${months}, ${total} weeks).`
-              : `= weeks with a PR, out of the last ${total} weeks, this one included.`}{" "}
-            {soFar}/{soFar} means not a week missed.
-            {streak ? (
-              <>
-                <br />
-                <b>🔥</b> = streak, weeks in a row with a PR.
-              </>
-            ) : null}
-            <br />
-            <b>Bar</b> = one block a week, {span === "season" ? "across the season" : `the last ${total} weeks`}; coloured when it had a PR,
-            this week last{span === "season" ? ", the faint ones still to come" : ""}.
+            <b>{tx(locale, "Lokal", "Local")}</b> = {tx(locale, "proyek komunitas atau maintainer Indonesia.", "community projects or Indonesian maintainers.")}
           </>
-        )}
+        ) : null}
+        <br />
+        <Link className="info-tip-more" href="/how-it-works#leaderboard">
+          {tx(locale, "Selengkapnya", "More")} →
+        </Link>
       </span>
     </span>
   );
@@ -131,7 +118,7 @@ export function countedRule(of: BoardOf, count: BoardCount, locale: Locale): str
  * Who has already filled this week, so nobody has to scan the dots for it:
  * a few names, then how many more.
  */
-export function ThisWeek({ names, locale, className }: { names: string[]; locale: Locale; className: string }) {
+export function ThisWeek({ names, locale, className, moreHref }: { names: string[]; locale: Locale; className: string; moreHref?: string }) {
   const shown = names.slice(0, 3);
   const more = names.length - shown.length;
   return (
@@ -141,7 +128,16 @@ export function ThisWeek({ names, locale, className }: { names: string[]; locale
       ) : (
         <>
           <span aria-hidden="true">✓</span> {tx(locale, "Minggu ini sudah PR:", "PR'd this week:")} <strong>{shown.join(", ")}</strong>
-          {more > 0 ? tx(locale, ` +${more} lainnya`, ` +${more} more`) : ""}
+          {more > 0 ? (
+            moreHref ? (
+              <>
+                {" "}
+                <Link href={moreHref}>{tx(locale, `+${more} lainnya`, `+${more} more`)}</Link>
+              </>
+            ) : (
+              tx(locale, ` +${more} lainnya`, ` +${more} more`)
+            )
+          ) : null}
         </>
       )}
     </p>
