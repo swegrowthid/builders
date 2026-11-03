@@ -607,9 +607,23 @@ export function ownerAvatar(repo: string, size = 40): string {
   return `https://github.com/${encodeURIComponent(repo.slice(0, repo.indexOf("/")))}.png?size=${size}`;
 }
 
+/**
+ * One formatter per time zone, made once. dayKey runs for every pull request
+ * on every board — tens of thousands of calls a render — and a new
+ * Intl.DateTimeFormat each time held its ICU memory outside the garbage
+ * collector's sight: on Netlify the server function grew ~150 MB a request,
+ * hit its 1 GB ceiling within five, and timed out.
+ */
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+
 /** A calendar day as `YYYY-MM-DD` in the given time zone. */
 export function dayKey(at: string | Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at));
+  let format = dayFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+    dayFormats.set(timeZone, format);
+  }
+  return format.format(new Date(at));
 }
 
 /**

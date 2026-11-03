@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 import { builderUrl, isOss, ossUrl } from "./app/lib/site";
+import { GUEST_CACHE, GUEST_CACHED_PATHS, guestVary, sessionCookieNames } from "./app/lib/cdn-cache";
+
+const sessionCookies = sessionCookieNames(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 /**
  * Cache Components is what makes this site cheap to serve.
@@ -19,6 +22,20 @@ import { builderUrl, isOss, ossUrl } from "./app/lib/site";
  */
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  // A guest's public page from Netlify's CDN rather than the server; see
+  // app/lib/cdn-cache.ts. Without the session cookie's name there is no way
+  // to keep members off a guest's copy, so nothing is cached then.
+  async headers() {
+    if (sessionCookies.length === 0) return [];
+    return GUEST_CACHED_PATHS.map((source) => ({
+      source,
+      missing: sessionCookies.map((key) => ({ type: "cookie" as const, key })),
+      headers: [
+        { key: "Netlify-CDN-Cache-Control", value: GUEST_CACHE },
+        { key: "Netlify-Vary", value: guestVary(sessionCookies) },
+      ],
+    }));
+  },
   async redirects() {
     return [
       // The open source site has none of the work of running a product: its

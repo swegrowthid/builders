@@ -53,7 +53,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  * familiar, while the list itself reads as a feed rather than a catalogue.
  *
  * Nobody writes these entries: the refresh-github-activity Edge Function asks
- * GitHub every half hour, for members who chose to be shown.
+ * GitHub every six hours, for members who chose to be shown.
  */
 export default async function ActivityPage({ searchParams }: { searchParams?: SearchParams }) {
   const query = searchParams ?? Promise.resolve({});

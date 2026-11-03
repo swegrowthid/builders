@@ -124,8 +124,8 @@ export function GitHubForm({
           <p className="hint">
             {handle
               ? tx(
-                  "Opsional, mati sampai kamu menyalakannya. Kalau dicentang, pull request dan jumlah commit publikmu muncul di halaman Aktivitas dalam beberapa menit, lalu diperbarui otomatis dari GitHub tiap 30 menit. Hilangkan centangnya kapan saja: datanya langsung disembunyikan lalu dihapus.",
-                  "Optional, and off until you turn it on. When ticked, your public pull requests and commit counts show on the Activity page within a few minutes, then refresh from GitHub every 30 minutes on their own. Untick it any time: they are hidden at once, then deleted.",
+                  "Opsional, mati sampai kamu menyalakannya. Kalau dicentang, pull request dan jumlah commit publikmu muncul di halaman Aktivitas dalam beberapa menit, lalu diperbarui otomatis dari GitHub tiap 6 jam. Hilangkan centangnya kapan saja: datanya langsung disembunyikan lalu dihapus.",
+                  "Optional, and off until you turn it on. When ticked, your public pull requests and commit counts show on the Activity page within a few minutes, then refresh from GitHub every 6 hours on their own. Untick it any time: they are hidden at once, then deleted.",
                 )
               : tx("Tautkan akun GitHub-mu dulu untuk menyalakannya.", "Link your GitHub account first to turn this on.")}
           </p>

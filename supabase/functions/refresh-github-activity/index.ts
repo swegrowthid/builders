@@ -6,7 +6,7 @@
  * Called two ways, both from the database (see
  * 20261024000000_github_activity.sql):
  *
- *   - by pg_cron every half hour, with an empty body: every member who has
+ *   - by pg_cron every six hours, with an empty body: every member who has
  *     agreed to be shown (profiles.github_activity_shown) and has linked a
  *     GitHub account (profiles.github_id, see 20261103000000_linked_github.sql);
  *   - by a trigger when somebody changes either of those, or shows a hidden
