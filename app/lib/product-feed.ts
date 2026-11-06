@@ -75,6 +75,19 @@ export function groupProductFeed(events: FeedEvent[], timeZone = "Asia/Jakarta")
   return [...byKey.values()].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 }
 
+/**
+ * The feed read whole only if fewer events came back than were asked for.
+ * When the read stopped at its limit, the oldest event's card may be missing
+ * the rest of its day — and with it the day's real first event, which its
+ * reactions are keyed by — so that card is left out rather than shown under
+ * the wrong key.
+ */
+export function dropCutOffDay(entries: ProductDay[], read: number, limit: number): ProductDay[] {
+  if (read < limit || entries.length === 0) return entries;
+  const oldest = Math.min(...entries.map((entry) => entry.firstEventId));
+  return entries.filter((entry) => entry.firstEventId !== oldest);
+}
+
 /** The timeline's days, newest first, as the PR feed groups them. */
 export function feedDays(entries: ProductDay[]): { day: string; entries: ProductDay[] }[] {
   const days: { day: string; entries: ProductDay[] }[] = [];
@@ -84,6 +97,94 @@ export function feedDays(entries: ProductDay[]): { day: string; entries: Product
     else days.push({ day: entry.day, entries: [entry] });
   }
   return days;
+}
+
+/**
+ * The feed's one "show" choice: every kind, or one. The address carries a
+ * short name rather than the trail's own (`?show=update`, not
+ * `?show=update_posted`), so a link reads as what it shows.
+ */
+export const FEED_SHOWS = ["all", "new", "stage", "update", "role-opened", "role-filled"] as const;
+export type FeedShow = (typeof FEED_SHOWS)[number];
+
+const SHOW_KIND: Record<Exclude<FeedShow, "all">, FeedKind> = {
+  new: "project_created",
+  stage: "project_stage_changed",
+  update: "update_posted",
+  "role-opened": "seat_opened",
+  "role-filled": "seat_filled",
+};
+
+export function isFeedShow(value: string): value is FeedShow {
+  return (FEED_SHOWS as readonly string[]).includes(value);
+}
+
+export function feedShowLabel(show: FeedShow, locale: Locale): string {
+  switch (show) {
+    case "all":
+      return tx(locale, "Semua kabar", "All news");
+    case "new":
+      return tx(locale, "Produk baru", "New products");
+    case "stage":
+      return tx(locale, "Pindah tahap", "New stages");
+    case "update":
+      return tx(locale, "Kabar terbaru", "Updates");
+    case "role-opened":
+      return tx(locale, "Peran dibuka", "Roles opened");
+    case "role-filled":
+      return tx(locale, "Peran terisi", "Roles filled");
+  }
+}
+
+type Query = Record<string, string | string[] | undefined> | URLSearchParams;
+
+function read(query: Query, key: string): string {
+  const value = query instanceof URLSearchParams ? query.get(key) : query[key];
+  return (Array.isArray(value) ? value[0] : value) ?? "";
+}
+
+/** What the address asks the feed for; anything it does not know is the whole feed, page one. */
+export function readProductFeedQuery(query: Query): { show: FeedShow; page: number } {
+  const show = read(query, "show");
+  const page = Number(read(query, "page"));
+  return { show: isFeedShow(show) ? show : "all", page: Number.isInteger(page) && page > 1 ? page : 1 };
+}
+
+/** The address for a choice and a page; changing the choice goes back to page one. */
+export function productFeedPath(show: FeedShow, page = 1): string {
+  const params = new URLSearchParams();
+  if (show !== "all") params.set("show", show);
+  if (page > 1) params.set("page", String(page));
+  const search = params.toString();
+  return `/${search ? `?${search}` : ""}`;
+}
+
+/**
+ * The cards with something of one kind on them, carrying only those lines.
+ * Each keeps its own `firstEventId`, the whole day's, so its reactions are
+ * the same ones it has unfiltered.
+ */
+export function filterProductFeed(entries: ProductDay[], show: FeedShow): ProductDay[] {
+  if (show === "all") return entries;
+  const kind = SHOW_KIND[show];
+  return entries
+    .flatMap((entry) => {
+      const events = entry.events.filter((event) => event.kind === kind);
+      return events.length > 0 ? [{ ...entry, at: events[0].createdAt, events }] : [];
+    })
+    // Ordered by the lines left, as the card's time now says.
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+
+/** How many cards each choice would list: the counts beside the chips. */
+export function feedShowCounts(entries: ProductDay[]): Record<FeedShow, number> {
+  const counts = Object.fromEntries(FEED_SHOWS.map((show) => [show, 0])) as Record<FeedShow, number>;
+  counts.all = entries.length;
+  for (const entry of entries) {
+    const kinds = new Set(entry.events.map((event) => event.kind));
+    for (const show of FEED_SHOWS) if (show !== "all" && kinds.has(SHOW_KIND[show])) counts[show] += 1;
+  }
+  return counts;
 }
 
 /** The numbers beside the heading, over the last 30 days. */
