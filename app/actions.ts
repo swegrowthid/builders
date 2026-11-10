@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath, updateTag } from "next/cache";
+import { updateTag } from "next/cache";
+import { revalidatePage } from "./lib/revalidate";
 import { redirect } from "next/navigation";
 import { requireSupabase, type Supabase } from "./lib/supabase";
 import {
@@ -34,7 +35,7 @@ import {
   type ProfileInput,
 } from "./lib/profile";
 import { tags } from "./lib/cache-tags";
-import { currentLocale } from "./lib/locale-server";
+import { requestLocale } from "./lib/locale-server";
 import { tx, type Locale } from "./lib/locale";
 
 export type CreateState = {
@@ -104,7 +105,7 @@ const GLYPHS = ["✦", "○○○", "▱", "⌖", "≡", "↗", "◔", "⌁"] as
  * one is built in the background — which is what `revalidateTag` does — would
  * read as the edit not having worked.
  *
- * The `revalidatePath` calls below these stay as they were. They clear the
+ * The `revalidatePage` calls below these stay as they were. They clear the
  * router's cache of a rendered route, which is a different store from the
  * tagged data these reads come from; the two are meant to be used together.
  */
@@ -148,7 +149,7 @@ function trailChanged(personId: string | null | undefined, slug?: string): void 
 
 /** Reads public GitHub copy into a browser draft; it never writes a project. */
 export async function importGitHubReadme(repoUrl: string): Promise<GitHubImportResult> {
-  const [viewer, locale] = await Promise.all([currentViewer(), currentLocale()]);
+  const [viewer, locale] = await Promise.all([currentViewer(), requestLocale()]);
   if (!viewer) return { ok: false, error: tx(locale, "Masuk sebelum mengimpor README.", "Sign in before importing a README.") };
 
   try {
@@ -167,7 +168,7 @@ export async function importGitHubReadme(repoUrl: string): Promise<GitHubImportR
  */
 export async function previewProjectLink(rawLink: string): Promise<LinkPreviewResult> {
   // Only whether they are signed in; the profile row would be one more trip.
-  const [viewer, locale] = await Promise.all([viewerId(), currentLocale()]);
+  const [viewer, locale] = await Promise.all([viewerId(), requestLocale()]);
   if (!viewer) return { ok: false, error: tx(locale, "Masuk sebelum menambahkan proyek.", "Sign in before adding a project.") };
 
   const link = normaliseLink(rawLink);
@@ -226,7 +227,7 @@ export async function createProject(_state: CreateState, formData: FormData): Pr
   };
 
   // Only the id is needed; the profile row would be one more trip to the database.
-  const [viewer, locale] = await Promise.all([viewerId(), currentLocale()]);
+  const [viewer, locale] = await Promise.all([viewerId(), requestLocale()]);
   if (!viewer) return { errors: { form: tx(locale, "Masuk sebelum menampilkan proyek di sini.", "Sign in before showing a project here.") }, values };
 
   const link = entryMethod === "link" ? normaliseLink(values.link) : "";
@@ -366,7 +367,7 @@ export async function createProject(_state: CreateState, formData: FormData): Pr
     return { errors: { form: messageOf(error, locale) }, values };
   }
 
-  // Tags, not revalidatePath("/"): the directory's project list is tagged
+  // Tags, not revalidatePage("/"): the directory's project list is tagged
   // `projects`, and clearing the whole path would also throw away the
   // catalogue, repository signals and member records it reads, none of which
   // a new project changes, so the next visit to Home rebuilt all of them.
@@ -416,7 +417,7 @@ export async function updateProject(_state: EditState, formData: FormData): Prom
     openForGitHubContributions: text(formData, "openForGitHubContributions"),
   };
 
-  const [viewer, locale] = await Promise.all([currentViewer(), currentLocale()]);
+  const [viewer, locale] = await Promise.all([currentViewer(), requestLocale()]);
   if (!viewer) return { errors: { form: tx(locale, "Masuk untuk mengedit proyek ini.", "Sign in to edit this project.") }, values };
 
   const errors: EditState["errors"] = validateBrief(values, locale);
@@ -493,8 +494,8 @@ export async function updateProject(_state: EditState, formData: FormData): Prom
   }
 
   projectChanged(slug);
-  revalidatePath(`/projects/${slug}`);
-  revalidatePath("/directory");
+  revalidatePage(`/projects/${slug}`);
+  revalidatePage("/directory");
   redirect(`/projects/${slug}`);
 }
 
@@ -517,7 +518,7 @@ export async function deleteProject(formData: FormData): Promise<void> {
   if (error) throw new Error(error.message);
 
   seatsChanged(slug);
-  revalidatePath("/directory");
+  revalidatePage("/directory");
   redirect(`/u/${viewer.username}`);
 }
 
@@ -553,8 +554,8 @@ export async function setStage(formData: FormData): Promise<void> {
 
   projectChanged(slug);
   trailChanged(await viewerId(), slug);
-  revalidatePath(`/projects/${slug}`);
-  revalidatePath("/directory");
+  revalidatePage(`/projects/${slug}`);
+  revalidatePage("/directory");
 }
 
 /* ------------------------------------------------------------------ *
@@ -589,7 +590,7 @@ export async function openSeat(formData: FormData): Promise<void> {
   if (error) throw new Error(error.message);
 
   seatsChanged(slug);
-  revalidatePath(`/projects/${slug}`);
+  revalidatePage(`/projects/${slug}`);
 }
 
 /**
@@ -614,8 +615,8 @@ export async function closeSeat(formData: FormData): Promise<void> {
   if (error) throw new Error(error.message);
 
   seatsChanged(slug);
-  revalidatePath(`/projects/${slug}`);
-  revalidatePath("/directory");
+  revalidatePage(`/projects/${slug}`);
+  revalidatePage("/directory");
 }
 
 export async function decideProposal(formData: FormData): Promise<void> {
@@ -633,8 +634,8 @@ export async function decideProposal(formData: FormData): Promise<void> {
 
   seatsChanged(slug);
   updateTag(tags.projectTrail(slug));
-  revalidatePath(`/projects/${slug}`);
-  revalidatePath("/directory");
+  revalidatePage(`/projects/${slug}`);
+  revalidatePage("/directory");
 }
 
 /* ------------------------------------------------------------------ *
@@ -673,10 +674,10 @@ export async function setNow(formData: FormData): Promise<void> {
 
   projectChanged(slug);
   trailChanged(await viewerId(), slug);
-  revalidatePath(`/projects/${slug}`);
-  revalidatePath("/directory");
+  revalidatePage(`/projects/${slug}`);
+  revalidatePage("/directory");
   // The same line is editable from the owner's next-steps page.
-  revalidatePath("/get-started");
+  revalidatePage("/get-started");
 }
 
 /**
@@ -700,8 +701,8 @@ export async function markNoticesSeen(): Promise<void> {
   if (error) throw new Error(error.message);
 
   // Notices belong to one recipient, so they are never part of a shared cache.
-  revalidatePath("/inbox");
-  revalidatePath("/", "layout");
+  revalidatePage("/inbox");
+  revalidatePage("/", "layout");
 }
 
 /* ------------------------------------------------------------------ *
@@ -728,7 +729,7 @@ export async function setActivityVisibility(formData: FormData): Promise<void> {
   if (error) throw new Error(error.message);
 
   trailChanged(viewer.id);
-  revalidatePath(`/u/${viewer.username}`);
+  revalidatePage(`/u/${viewer.username}`);
 }
 
 /**
@@ -761,7 +762,7 @@ export async function updateProfile(
     x: text(formData, "x"),
   };
 
-  const [viewer, locale] = await Promise.all([currentViewer(), currentLocale()]);
+  const [viewer, locale] = await Promise.all([currentViewer(), requestLocale()]);
   if (!viewer) {
     return { errors: { form: tx(locale, "Sesi kamu telah berakhir. Masuk kembali, lalu simpan sekali lagi.", "You are no longer signed in. Sign in again, then save once more.") }, values };
   }
@@ -792,9 +793,9 @@ export async function updateProfile(
   updateTag(tags.person(viewer.username));
   updateTag(tags.people);
   updateTag(tags.projects);
-  revalidatePath(`/u/${viewer.username}`);
-  revalidatePath("/get-started");
-  revalidatePath("/account/profile");
+  revalidatePage(`/u/${viewer.username}`);
+  revalidatePage("/get-started");
+  revalidatePage("/account/profile");
   redirect(returnTo ?? `/u/${viewer.username}?saved=1`);
 }
 
@@ -815,7 +816,7 @@ export type GitHubState = {
  */
 export async function saveGitHub(_state: GitHubState, formData: FormData): Promise<GitHubState> {
   const values = { shown: formData.get("github_activity") === "1" };
-  const [viewer, locale] = await Promise.all([currentViewer(), currentLocale()]);
+  const [viewer, locale] = await Promise.all([currentViewer(), requestLocale()]);
   if (!viewer) {
     return { errors: { form: tx(locale, "Sesi kamu telah berakhir. Masuk kembali, lalu simpan sekali lagi.", "You are no longer signed in. Sign in again, then save once more.") }, values };
   }
@@ -830,7 +831,7 @@ export async function saveGitHub(_state: GitHubState, formData: FormData): Promi
   updateTag(tags.person(viewer.username));
   updateTag(tags.people);
   updateTag(tags.activity);
-  revalidatePath(`/u/${viewer.username}`);
+  revalidatePage(`/u/${viewer.username}`);
   return { errors: {}, values, saved: true };
 }
 
@@ -870,7 +871,7 @@ function githubReposChanged(username: string): void {
   updateTag(tags.oss);
   updateTag(tags.people);
   updateTag(tags.person(username));
-  revalidatePath("/account/profile");
+  revalidatePage("/account/profile");
 }
 
 export type UsernameState = {
@@ -892,7 +893,7 @@ export type UsernameState = {
  */
 export async function changeUsername(_state: UsernameState, formData: FormData): Promise<UsernameState> {
   const typed = text(formData, "username");
-  const [viewer, locale] = await Promise.all([currentViewer(), currentLocale()]);
+  const [viewer, locale] = await Promise.all([currentViewer(), requestLocale()]);
   if (!viewer) {
     return { error: tx(locale, "Sesi kamu telah berakhir. Masuk kembali, lalu coba sekali lagi.", "You are no longer signed in. Sign in again, then try once more."), username: typed };
   }
@@ -934,7 +935,7 @@ export async function changeUsername(_state: UsernameState, formData: FormData):
   updateTag(tags.activity);
   updateTag(tags.oss);
   trailChanged(viewer.id);
-  revalidatePath("/", "layout");
+  revalidatePage("/", "layout");
   redirect(`/u/${next}?saved=1`);
 }
 
@@ -1107,9 +1108,9 @@ export async function removeOssContribution(formData: FormData): Promise<void> {
 
 function ossChanged(username: string): void {
   updateTag(tags.oss);
-  revalidatePath("/directory");
-  revalidatePath(`/u/${username}`);
-  revalidatePath("/get-started");
+  revalidatePage("/directory");
+  revalidatePage(`/u/${username}`);
+  revalidatePage("/get-started");
 }
 
 /**
@@ -1129,7 +1130,7 @@ function ossChanged(username: string): void {
  * into a sentence.
  */
 export async function saveRepo(_state: RepoFormState, formData: FormData): Promise<RepoFormState> {
-  const locale = await currentLocale();
+  const locale = await requestLocale();
   const values: RepoFormState["values"] = {
     repo: text(formData, "repo"),
     list: text(formData, "list") || "recommended",
@@ -1280,7 +1281,7 @@ export async function deleteRepo(formData: FormData): Promise<void> {
 
 function catalogueChanged(): void {
   updateTag(tags.catalogue);
-  revalidatePath("/directory");
-  revalidatePath("/recommend");
-  revalidatePath("/admin");
+  revalidatePage("/directory");
+  revalidatePage("/recommend");
+  revalidatePage("/admin");
 }

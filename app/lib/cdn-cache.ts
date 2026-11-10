@@ -1,13 +1,14 @@
 /**
  * Netlify's CDN keeps the public pages for guests.
  *
- * Every page here renders per request — the root layout reads the language
- * and theme cookies — so without this each view of the home page, a profile
- * or a share card woke the server function, and crawlers made sure there were
- * views around the clock. A guest's page is the same for every guest who
- * picked the same language and theme, so the CDN can answer it: the server
- * renders each address about once an hour, and stale copies are served while
- * it does.
+ * Each view of the home page, a profile or a share card wakes the server
+ * function, if only to fill in the parts of a prerendered page that depend on
+ * who is looking, and crawlers make sure there are views around the clock. A
+ * guest's page is the same for every guest who picked the same language (the
+ * cookie proxy.ts picks a page's language copy by), so the CDN can answer it:
+ * the server renders each address about once an hour, and stale copies are
+ * served while it does. The theme is applied in the browser, so it does not
+ * split the copies.
  *
  * Only for guests. The rule applies when the request carries no Supabase
  * session cookie, and the session cookies are in `Netlify-Vary` too, so a
@@ -22,7 +23,6 @@
  */
 
 import { LANGUAGE_COOKIE } from "./locale";
-import { THEME_COOKIE } from "./theme";
 
 /** How long the CDN answers from its copy, and how long past that it may while one is rendered. */
 export const GUEST_CACHE = "public, durable, s-maxage=3600, stale-while-revalidate=86400";
@@ -71,5 +71,5 @@ export function sessionCookieNames(supabaseUrl: string | undefined): string[] {
 
 /** What a guest's copy is keyed by, besides the address and its query. */
 export function guestVary(sessionCookies: string[]): string {
-  return `query, cookie=${[LANGUAGE_COOKIE, THEME_COOKIE, ...sessionCookies].join("|")}`;
+  return `query, cookie=${[LANGUAGE_COOKIE, ...sessionCookies].join("|")}`;
 }

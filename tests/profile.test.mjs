@@ -91,12 +91,12 @@ test("the reserved names and the username format match the database's", () => {
 });
 
 test("the profile editor cannot come back stale after a save (#191)", () => {
-  const page = readFileSync(new URL("../app/account/profile/page.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../app/[lang]/account/profile/page.tsx", import.meta.url), "utf8");
   // Instant validation stays off, like the rest of /account.
   assert.match(page, /export const instant = false/);
   // Fresh values arrive because the save action revalidates the editor.
   const actions = readFileSync(new URL("../app/actions.ts", import.meta.url), "utf8");
-  assert.match(actions, /revalidatePath\("\/account\/profile"\)/);
+  assert.match(actions, /revalidatePage\("\/account\/profile"\)/);
   // useActionState keeps the values it was mounted with, so the form has to
   // be remounted when the stored profile changes.
   assert.match(page, /<ProfileForm[^>]*key=\{JSON\.stringify\(editable\)\}/s);
