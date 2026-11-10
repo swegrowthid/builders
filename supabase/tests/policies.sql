@@ -978,6 +978,66 @@ select checks.equal(
   (select github || '|' || coalesce(github_id::text, '') || '|' || github_activity_shown::text from public.profiles where id = '55555555-5555-4555-8555-555555555555'),
   '||false', 'melepas tautan mengosongkan akun dan persetujuan aktivitas');
 
+-- ------------------------------------------------- hidden GitHub repositories --
+--
+-- A member keeps a list of repositories off the site (20261105000000). The
+-- insert policy caps the list, and the cap used to count the table from inside
+-- its own policy, which refused every insert (#237, 20261110000000).
+
+select checks.act_as('11111111-1111-4111-8111-111111111111');
+select checks.allowed(
+  $$insert into public.github_hidden_repos (user_id, pattern) values ('11111111-1111-4111-8111-111111111111', 'contoh/satu')$$,
+  'member menyembunyikan satu repositori');
+select checks.allowed(
+  $$insert into public.github_hidden_repos (user_id, pattern) values ('11111111-1111-4111-8111-111111111111', 'contoh/*')$$,
+  'member menyembunyikan semua repositori satu pemilik');
+-- What the app sends: hiding the same one twice is not an error.
+select checks.allowed(
+  $$insert into public.github_hidden_repos (user_id, pattern) values ('11111111-1111-4111-8111-111111111111', 'contoh/satu')
+    on conflict (user_id, pattern) do nothing$$,
+  'menyembunyikan yang sama dua kali tidak gagal');
+select checks.equal(
+  (select count(*) from public.github_hidden_repos), 2::bigint,
+  'pemilik membaca daftar miliknya');
+select checks.denied(
+  $$insert into public.github_hidden_repos (user_id, pattern) values ('22222222-2222-4222-8222-222222222222', 'contoh/dua')$$,
+  'menyembunyikan atas nama member lain ditolak');
+
+-- The list is its owner's alone, to read and to count.
+select checks.act_as('22222222-2222-4222-8222-222222222222');
+select checks.equal(
+  (select count(*) from public.github_hidden_repos), 0::bigint,
+  'member lain tidak membaca daftar itu');
+select checks.equal(
+  public.github_hidden_repo_count(), 0,
+  'hitungan hanya untuk pemanggilnya');
+-- A delete of rows the policy hides is not an error, it removes nothing.
+delete from public.github_hidden_repos where user_id = '11111111-1111-4111-8111-111111111111';
+select checks.act_as_guest();
+select checks.denied(
+  $$select public.github_hidden_repo_count()$$,
+  'tamu tidak memanggil hitungan');
+reset role;
+select checks.equal(
+  (select count(*) from public.github_hidden_repos where user_id = '11111111-1111-4111-8111-111111111111'), 2::bigint,
+  'member lain tidak menghapus daftar itu');
+
+-- The cap still holds: 200 rows, and the next is refused until one is shown again.
+insert into public.github_hidden_repos (user_id, pattern)
+  select '11111111-1111-4111-8111-111111111111', 'penuh/repo-' || n from generate_series(1, 198) n;
+select checks.act_as('11111111-1111-4111-8111-111111111111');
+select checks.equal(public.github_hidden_repo_count(), 200, 'daftar berisi 200');
+select checks.denied(
+  $$insert into public.github_hidden_repos (user_id, pattern) values ('11111111-1111-4111-8111-111111111111', 'penuh/lebih')$$,
+  'repositori ke-201 ditolak');
+select checks.allowed(
+  $$delete from public.github_hidden_repos where user_id = '11111111-1111-4111-8111-111111111111' and pattern = 'penuh/repo-1'$$,
+  'member menampilkan satu lagi');
+select checks.allowed(
+  $$insert into public.github_hidden_repos (user_id, pattern) values ('11111111-1111-4111-8111-111111111111', 'penuh/lebih')$$,
+  'setelah itu ada tempat lagi');
+reset role;
+
 rollback;
 
 drop schema checks cascade;
