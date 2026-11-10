@@ -13,10 +13,9 @@ type LanguageContextValue = {
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ locale: served, children }: { locale: Locale; children: ReactNode }) {
-  // Switching language is a navigation that only changes the query string, and
-  // the root layout does not re-render for those. So the prop is the language
-  // the document was served in, and this is the one being read right now; they
-  // differ for as long as a visitor stays on the route they switched on.
+  // The prop is the language the document was served in, and this is the one
+  // being read right now. They differ only between a pick in LanguagePicker
+  // and the full page load it starts, so the choice shows at once.
   const [chosen, setChosen] = useState({ locale: served, from: served });
   if (chosen.from !== served) setChosen({ locale: served, from: served });
   const locale = chosen.locale;
@@ -25,9 +24,8 @@ export function LanguageProvider({ locale: served, children }: { locale: Locale;
     document.documentElement.lang = locale;
     // Every later request reads this: the plain URLs the rest of the site links
     // to carry no ?lang=. Writing it here rather than in proxy.ts is deliberate
-    // — <Link prefetch> fetches the other language before anybody clicks it,
-    // and a Set-Cookie on that response would switch the site unasked. It also
-    // means a shared ?lang= link is remembered once it is actually opened.
+    // — a prefetch of a ?lang= link would otherwise switch the site unasked. It
+    // also means a shared ?lang= link is remembered once it is actually opened.
     document.cookie = `${LANGUAGE_COOKIE}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
   }, [locale]);
 
