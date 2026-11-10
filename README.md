@@ -284,14 +284,25 @@ The policies have their own suite, which needs a scratch PostgreSQL 16:
 
 ```bash
 createdb builders_test
-psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/local/auth-shim.sql
-for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f "$f"; done
-psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/tests/policies.sql
+( set -e  # stop at the first failure without closing your shell
+  psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/local/auth-shim.sql
+  for f in supabase/migrations/*.sql; do
+    echo "== $f"
+    psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f "$f"
+  done
+  psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/tests/policies.sql
+)
 ```
 
 `supabase/local/auth-shim.sql` is the smallest slice of Supabase's `auth` schema
 the migrations touch, so a plain PostgreSQL can run them. It is for development
-only — never run it against a hosted project.
+only — never run it against a hosted project. It also stands in for
+`cron.schedule`: `pg_cron` and `pg_net` exist only on Supabase, so the migration
+that creates them skips them on a plain PostgreSQL, and a scheduled job there
+does nothing.
+
+CI runs these same steps against a `postgres:16` service
+(`.github/workflows/ci.yml`), so the run needs no Supabase extensions.
 
 ## Deployment
 
