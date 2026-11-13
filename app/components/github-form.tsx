@@ -118,10 +118,10 @@ export function GitHubForm({
 
         <div className="gh-consent">
           <label htmlFor="github-activity">
-            <input id="github-activity" type="checkbox" name="github_activity" value="1" defaultChecked={values.shown} disabled={!handle} />
+            <input id="github-activity" type="checkbox" name="github_activity" value="1" defaultChecked={values.shown} disabled={!handle} aria-describedby="github-activity-hint" />
             {tx("Tampilkan aktivitas GitHub-ku di halaman Aktivitas", "Show my GitHub activity on the Activity page")}
           </label>
-          <p className="hint">
+          <p className="hint" id="github-activity-hint">
             {handle
               ? tx(
                   "Opsional, mati sampai kamu menyalakannya. Kalau dicentang, pull request dan jumlah commit publikmu muncul di halaman Aktivitas dalam beberapa menit, lalu diperbarui otomatis dari GitHub tiap 6 jam. Hilangkan centangnya kapan saja: datanya langsung disembunyikan lalu dihapus.",

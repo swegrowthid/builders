@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { updateProfile, type ProfileState } from "../actions";
 import { PROFILE_LIMITS, PROFILE_MAXIMUM } from "../lib/profile";
 import { Field } from "./field";
@@ -43,7 +43,7 @@ export function ProfileForm({
 
       <fieldset className="step tone-pick">
         <legend>
-          <span className="step-number">3</span> {tx("Tentang dirimu", "About you")}
+          <span className="step-number">4</span> {tx("Tentang dirimu", "About you")}
         </legend>
         <p className="step-intro">
           {tx(
@@ -85,14 +85,9 @@ export function ProfileForm({
           hint={tx(`Pisahkan dengan koma, maksimal ${PROFILE_LIMITS.skills}.`, `Separate with commas, up to ${PROFILE_LIMITS.skills}.`)}
           error={errors.skills}
           defaultValue={values.skills}
-          list="skill-suggestions"
           placeholder={tx("Next.js, Go, Riset Pengguna", "Next.js, Go, User Research")}
         />
-        <datalist id="skill-suggestions">
-          {skillSuggestions.map((skill) => (
-            <option key={skill} value={skill} />
-          ))}
-        </datalist>
+        <SkillSuggestions inputId="skills" initial={values.skills} suggestions={skillSuggestions} limit={PROFILE_LIMITS.skills} />
 
         <Field
           label={tx("Bio singkat", "Short bio")}
@@ -107,7 +102,7 @@ export function ProfileForm({
 
       <fieldset className="step tone-work" id="contact">
         <legend>
-          <span className="step-number">4</span> {tx("Kontak lain", "Other contacts")}
+          <span className="step-number">5</span> {tx("Kontak lain", "Other contacts")}
         </legend>
         <p className="step-intro">
           {tx("Opsional. Semua tautan di bawah bersifat publik dan hanya tampil jika diisi. Email yang kamu pakai untuk masuk tidak pernah ditampilkan.", "Optional. All links below are public and only appear when filled in. The email you sign in with is never shown.")}
@@ -155,5 +150,44 @@ export function ProfileForm({
         {pending ? tx("Menyimpan…", "Saving…") : tx("Simpan profil", "Save profile")}
       </button>
     </form>
+  );
+}
+
+/** Shown under the skills field: the terms others use most, one tap to add. */
+function SkillSuggestions({ inputId, initial, suggestions, limit }: { inputId: string; initial: string; suggestions: string[]; limit: number }) {
+  const { tx } = useLanguage();
+  const [value, setValue] = useState(initial);
+
+  // The field is uncontrolled; follow what is typed into it.
+  useEffect(() => {
+    const input = document.getElementById(inputId) as HTMLInputElement | null;
+    if (!input) return;
+    const follow = () => setValue(input.value);
+    input.addEventListener("input", follow);
+    return () => input.removeEventListener("input", follow);
+  }, [inputId]);
+
+  const chosen = value.split(/[,\n]/).map((term) => term.trim()).filter(Boolean);
+  const taken = new Set(chosen.map((term) => term.toLowerCase()));
+  const offered = suggestions.filter((skill) => !taken.has(skill.toLowerCase())).slice(0, 8);
+  if (offered.length === 0 || chosen.length >= limit) return null;
+
+  const add = (skill: string) => {
+    const input = document.getElementById(inputId) as HTMLInputElement | null;
+    if (!input) return;
+    input.value = [...chosen, skill].join(", ");
+    setValue(input.value);
+    input.focus();
+  };
+
+  return (
+    <p className="skill-suggest">
+      <span>{tx("Sering dipakai:", "Often used:")}</span>
+      {offered.map((skill) => (
+        <button key={skill} type="button" className="text-button" onClick={() => add(skill)} aria-label={tx(`Tambah ${skill}`, `Add ${skill}`)}>
+          {skill}
+        </button>
+      ))}
+    </p>
   );
 }
