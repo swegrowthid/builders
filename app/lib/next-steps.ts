@@ -96,7 +96,7 @@ export function nextSteps({
       title: tx(locale, "Tautkan GitHub & tampilkan aktivitasmu", "Link GitHub and show your activity"),
       blurb: tx(
         locale,
-        "Akun yang kamu pakai untuk kirim PR. Fotonya muncul di badge direktori, dan PR-mu yang di-merge muncul di halaman Aktivitas—biar teman lain ikut semangat.",
+        "Akun yang kamu pakai untuk mengirim PR. Fotonya muncul di badge direktori, dan PR-mu yang di-merge muncul di halaman Aktivitas—supaya teman lain ikut semangat.",
         "The account you send PRs with. Its picture shows on directory badges, and your merged PRs show on the Activity page—so friends get the itch too.",
       ),
       href: "/account/profile#github-account",
@@ -140,14 +140,14 @@ export function nextSteps({
     },
     {
       id: "project",
-      title: tx(locale, "Punya produk yang butuh kontributor?", "Have a product that needs contributors?"),
+      title: tx(locale, "Punya proyek yang mencari kontributor?", "Have a project looking for contributors?"),
       blurb: tx(
         locale,
-        "Daftarkan, sebutkan peran yang kamu cari atau buka untuk PR, dan produkmu muncul di direktori.",
-        "List it, name the roles you need or open it to PRs, and it shows up in the directory.",
+        "Daftarkan, sebutkan peran yang kamu cari atau buka untuk PR, dan proyekmu muncul di direktori.",
+        "List it, name the roles you are looking for or open it to PRs, and it shows up in the directory.",
       ),
       href: "/new",
-      cta: tx(locale, "Daftarkan produk", "List a product"),
+      cta: tx(locale, "Daftarkan proyek", "List a project"),
       done: owned.length > 0,
       optional: true,
     },
@@ -161,8 +161,8 @@ export function nextSteps({
       title: tx(locale, "Ceritakan apa yang sedang kamu kerjakan", "Describe what you are working on"),
       blurb: tx(
         locale,
-        "Cukup satu kalimat. Inilah yang membedakan produk aktif dari daftar ide yang terbengkalai.",
-        "One sentence. This is what separates a living product from an abandoned idea list.",
+        "Cukup satu kalimat. Inilah yang membedakan proyek aktif dari daftar ide yang terbengkalai.",
+        "One sentence. This is what separates a living project from an abandoned idea list.",
       ),
       href: `/projects/${quiet.slug}`,
       cta: tx(locale, "Tulis kabar terbaru", "Write the update"),
@@ -173,11 +173,11 @@ export function nextSteps({
     const seatless = owned.find((project) => project.openSeatCount === 0) ?? owned[0];
     steps.push({
       id: "role",
-      title: tx(locale, "Buka peran saat kamu membutuhkan bantuan", "Open a role when you need help"),
+      title: tx(locale, "Buka peran yang kamu cari", "Open the roles you are looking for"),
       blurb: tx(
         locale,
-        "Jelaskan pekerjaannya dan perkiraan waktunya — produkmu lalu muncul di jalur \"Peran lain\" di direktori.",
-        "Name the work and its estimated time — your product then shows up on the directory's \"Other roles\" path.",
+        "Jelaskan pekerjaannya dan perkiraan waktunya — proyekmu lalu muncul di jalur \"Peran lain\" di direktori.",
+        "Name the work and its estimated time — your project then shows up on the directory's \"Other roles\" path.",
       ),
       href: `/projects/${seatless.slug}?tab=collaboration`,
       cta: tx(locale, "Buka peran", "Open a role"),

@@ -1,8 +1,7 @@
 "use client";
 
-import { Fragment, useTransition } from "react";
-import Link from "@/app/components/responsive-link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Fragment, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useLanguage } from "./language-provider";
 import { LANGUAGE_PARAM, LOCALES, type Locale } from "../lib/locale";
 
@@ -19,21 +18,19 @@ function isPlainClick(event: React.MouseEvent): boolean {
 /**
  * The full-page version of the language choice, for /account/language.
  *
- * Same mechanism as the header switcher used to be: an ordinary `<Link>` to
- * this same page carrying ?lang=, which proxy.ts turns into the language every
- * Server Component reads. Both options stay `<Link prefetch>` so the browser
- * fetches them ahead of the click — but the click itself is driven through
- * `useTransition` rather than left to Link's own navigation. `useLinkStatus`
- * (Link's usual way of reporting this) never reported pending for this
- * particular case: a query-string-only change to the very page it's on. This
- * gives the same "is it still working" signal without depending on that.
+ * Each option is a link to this same page carrying ?lang=, which proxy.ts
+ * turns into that language's copy of the page (app/[lang]). The two copies
+ * sit under different root layouts, so the switch is a full page load rather
+ * than a client navigation: done in place, the router kept pages it had
+ * already fetched in the old language and showed one of them for the next
+ * link clicked. A plain `<a>` and `location.replace`, with the spinner shown
+ * until the new page arrives.
  */
 export function LanguagePicker() {
   const { locale, choose, tx } = useLanguage();
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setPending] = useState(false);
 
   function hrefFor(target: Locale): string {
     const params = new URLSearchParams(searchParams.toString());
@@ -44,17 +41,18 @@ export function LanguagePicker() {
   function pick(event: React.MouseEvent, target: Locale) {
     if (!isPlainClick(event)) return; // let the browser open it in a new tab, etc.
     event.preventDefault();
+    if (target === locale) return;
     choose(target);
-    startTransition(() => router.replace(hrefFor(target), { scroll: false }));
+    setPending(true);
+    window.location.replace(hrefFor(target));
   }
 
   return (
     <div className="language-picker" role="radiogroup" aria-label={tx("Pilih bahasa", "Choose language")}>
       {LOCALES.map((target) => (
         <Fragment key={target}>
-          <Link
+          <a
             href={hrefFor(target)}
-            prefetch
             hrefLang={target}
             role="radio"
             aria-checked={locale === target}
@@ -71,7 +69,7 @@ export function LanguagePicker() {
             ) : locale === target ? (
               <span className="language-option-check" aria-hidden="true">✓</span>
             ) : null}
-          </Link>
+          </a>
         </Fragment>
       ))}
     </div>

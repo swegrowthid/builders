@@ -1,7 +1,7 @@
 "use client";
 
+import { useState, type ComponentProps } from "react";
 import { useFormStatus } from "react-dom";
-import type { ComponentProps } from "react";
 
 type Props = ComponentProps<"button"> & {
   /** What the button says while its form is in flight. Omit to keep the label. */
@@ -26,5 +26,33 @@ export function SubmitButton({ pendingLabel, children, disabled, ...rest }: Prop
     <button {...rest} type="submit" disabled={disabled || pending} aria-busy={pending || undefined}>
       {pending && pendingLabel ? pendingLabel : children}
     </button>
+  );
+}
+
+/**
+ * A submit button that asks once: the first press turns it into its
+ * confirmation, the second sends. Leaving it disarms it. Without JavaScript
+ * it submits on the first press, like any button.
+ */
+export function ConfirmSubmitButton({ confirmLabel, children, onClick, onBlur, ...rest }: Props & { confirmLabel: string }) {
+  const [armed, setArmed] = useState(false);
+
+  return (
+    <SubmitButton
+      {...rest}
+      onClick={(event) => {
+        if (!armed) {
+          event.preventDefault();
+          setArmed(true);
+        }
+        onClick?.(event);
+      }}
+      onBlur={(event) => {
+        setArmed(false);
+        onBlur?.(event);
+      }}
+    >
+      {armed ? confirmLabel : children}
+    </SubmitButton>
   );
 }

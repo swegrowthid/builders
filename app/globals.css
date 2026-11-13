@@ -18,6 +18,8 @@
   --ink-soft: light-dark(#3f3f46, #cdcdd4);
   --muted: light-dark(#71717a, #a3a3ab);
   --coral: #ed714b;
+  /* Coral dark enough to read as text or a focus ring on white (4.5:1). */
+  --coral-text: light-dark(#c0502b, #ed714b);
   /* Kept as an alias: older rules and a few pages still speak in "orange". */
   --orange: var(--coral);
   --lime: light-dark(#f4f4f5, #29292c);
@@ -83,7 +85,7 @@ h1, h2, h3, h4, p, dd, blockquote, li { overflow-wrap: anywhere; }
 main { display: block; flex: 1 0 auto; }
 svg.icon { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--coral-text); outline-offset: 2px; }
 
 /* The header is sticky, so a jump to `#activity-heading` — the trail tabs on a
    profile — would otherwise park the heading underneath it. Keep whatever we
@@ -304,7 +306,7 @@ nav form { display: flex; margin: 0; }
 /* ------------------------------------------------------------ shared bits */
 
 .eyebrow {
-  align-items: center; color: var(--coral); display: flex; font-family: var(--font-geist-mono), monospace;
+  align-items: center; color: var(--coral-text); display: flex; font-family: var(--font-geist-mono), monospace;
   font-size: 11px; font-weight: 700; gap: 9px; letter-spacing: .13em; margin: 0 0 18px;
   text-transform: uppercase;
 }
@@ -317,7 +319,7 @@ nav form { display: flex; margin: 0; }
   margin-bottom: 24px;
 }
 .page-narrow h1 em {
-  color: var(--coral); font-family: Georgia, "Times New Roman", serif; font-weight: 400;
+  color: var(--coral-text); font-family: Georgia, "Times New Roman", serif; font-weight: 400;
   letter-spacing: -.04em;
 }
 
@@ -434,7 +436,7 @@ form button[aria-busy="true"] { cursor: progress; opacity: .6; }
 .card-cover-link::after { bottom: 0; content: ""; left: 0; position: absolute; right: 0; top: 0; }
 .card-cover-link:focus-visible { outline: none; }
 .project-item:has(.card-cover-link:focus-visible) {
-  outline: 2px solid var(--coral); outline-offset: 2px;
+  outline: 2px solid var(--coral-text); outline-offset: 2px;
 }
 .card-owner,
 .tag-row a,
@@ -853,6 +855,7 @@ form button.danger:hover { background: #96320f; }
   border-radius: var(--radius); margin-bottom: 10px; padding: 18px 22px;
 }
 .notice-list li.is-new { border-left-color: var(--coral); }
+.notice-new { color: var(--coral-text); font-weight: 650; }
 .notice-list p { font-size: 15px; line-height: 1.6; margin: 0 0 6px; }
 .notice-list a { border-bottom: 1px solid var(--line-2); }
 .notice-list small { color: var(--muted); font-size: 12px; }
@@ -1525,10 +1528,11 @@ form button[aria-busy="true"]::after,
   --dx-ink: light-dark(#09090b, #eaeaed);
   --dx-text: light-dark(#3f3f46, #cdcdd4);
   --dx-muted: light-dark(#71717a, #a3a3ab);
-  --dx-faint: light-dark(#a1a1aa, #5d5d65);
+  /* Still under --dx-muted, but at 4.5:1: it carries times, counts and notes. */
+  --dx-faint: light-dark(#74747d, #8a8a92);
   --dx-line: light-dark(#e4e4e7, #383839);
   --dx-soft: light-dark(#f4f4f5, #29292c);
-  --dx-warm: #c2410c;
+  --dx-warm: light-dark(#c2410c, #f0855f);
   --dx-warm-soft: light-dark(#fff1e8, #1c1510);
 }
 .dx-page {
@@ -2601,7 +2605,7 @@ footer .theme-row[aria-checked="true"] .theme-switch::after { transform: transla
 .gh-form-actions { align-items: center; display: flex; gap: 12px; margin-top: 14px; }
 /* Repos kept off the site, under the GitHub form: hairline rows, a text button each. */
 .gh-hidden { margin: -8px 0 28px; }
-.gh-hidden h3 { font-size: 14px; font-weight: 650; margin: 0 0 4px; }
+.gh-hidden h2 { font-size: 14px; font-weight: 650; margin: 0 0 4px; }
 .gh-hidden .hint { margin: 4px 0 8px; }
 .gh-hidden-list { list-style: none; margin: 0 0 10px; padding: 0; }
 .gh-hidden-list li { align-items: center; border-bottom: 1px solid var(--dx-line); display: flex; font-size: 13.5px; gap: 12px; justify-content: space-between; padding: 6px 0; }
@@ -2805,6 +2809,24 @@ form.oss-add-form select {
   margin: 0; padding: 9px 11px;
 }
 form.oss-add-form select { width: auto; }
+/* /account/profile: every control in one shape, so the forms read as one page. */
+.account-page form input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="search"]),
+.account-page form textarea,
+.account-page form select {
+  background-color: light-dark(#fff, #1f1f1f); border: 1px solid var(--dx-line); border-radius: 8px; font-size: 14px; line-height: 1.5;
+  padding: 9px 11px;
+}
+.account-page form select {
+  appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-position: right 10px center; background-repeat: no-repeat; background-size: 14px 14px; padding-right: 32px;
+}
+.account-page .oss-add-row button {
+  background: transparent; border: 1px solid var(--line-2); border-radius: 7px; color: inherit; padding: 0 14px;
+}
+.account-page .oss-add-row button:hover { background: transparent; border-color: var(--ink); }
+.skill-suggest { align-items: baseline; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: -10px 0 18px; }
+.skill-suggest > span { color: var(--dx-muted); font-size: 12.5px; }
+.skill-suggest .text-button { font-size: 13px; }
 form.rf input:focus-visible, form.rf textarea:focus-visible, form.rf select:focus-visible,
 form.oss-add-form input:focus-visible, form.oss-add-form select:focus-visible {
   border-color: var(--dx-ink); outline: 3px solid light-dark(rgba(9, 9, 11, .06), rgba(234, 234, 237, .06)); outline-offset: 0;
