@@ -14,7 +14,7 @@ export function isTalentPoolMember(entry: PersonAtWork): boolean {
 /**
  * The terms other people already use, most common first.
  *
- * Fed to the profile editor as a `<datalist>`. Suggesting rather than
+ * Offered in the profile editor under the skills field. Suggesting rather than
  * constraining: somebody typing "Riset Pengguna" when the rest of the site
  * writes "User Research" is two entries in the talent pool that should have
  * been one, and nobody can see that from inside their own form.

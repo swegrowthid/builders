@@ -1,10 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePage } from "./lib/revalidate";
 import { requireSupabase } from "./lib/supabase";
 import { safeNextPath, startPath } from "./lib/urls";
-import { currentLocale } from "./lib/locale-server";
+import { requestLocale } from "./lib/locale-server";
 import { tx, type Locale } from "./lib/locale";
 
 export type AuthState = {
@@ -16,7 +16,7 @@ export type AuthState = {
 const MIN_PASSWORD = 8;
 
 export async function signIn(_state: AuthState, formData: FormData): Promise<AuthState> {
-  const locale = await currentLocale();
+  const locale = await requestLocale();
   const email = text(formData, "email").toLowerCase();
   const password = raw(formData, "password");
   const next = safeNextPath(text(formData, "next"));
@@ -25,7 +25,7 @@ export async function signIn(_state: AuthState, formData: FormData): Promise<Aut
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: translate(error.message, locale), values: { email, next } };
 
-  revalidatePath("/", "layout");
+  revalidatePage("/", "layout");
   redirect(startPath(next));
 }
 
@@ -36,7 +36,7 @@ export async function signIn(_state: AuthState, formData: FormData): Promise<Aut
  * guessing — an expired link should send somebody back to ask for a new one.
  */
 export async function updatePassword(_state: AuthState, formData: FormData): Promise<AuthState> {
-  const locale = await currentLocale();
+  const locale = await requestLocale();
   const password = raw(formData, "password");
   const confirm = raw(formData, "confirm");
 
@@ -58,7 +58,7 @@ export async function updatePassword(_state: AuthState, formData: FormData): Pro
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: translate(error.message, locale), values: {} };
 
-  revalidatePath("/", "layout");
+  revalidatePage("/", "layout");
   redirect("/");
 }
 
@@ -66,7 +66,7 @@ export async function signOut(): Promise<void> {
   const supabase = await requireSupabase();
   await supabase.auth.signOut();
 
-  revalidatePath("/", "layout");
+  revalidatePage("/", "layout");
   redirect("/");
 }
 

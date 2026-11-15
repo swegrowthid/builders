@@ -28,10 +28,11 @@ function subscribe(onChange: () => void): () => void {
 /**
  * One button that flips between light and dark.
  *
- * The choice is applied to <html> at once and kept in a cookie, so the server
- * renders the next page in it without a flash. Flipping back to whatever the
- * device prefers clears the cookie instead, so a visitor who never meant to
- * pin a theme goes on following their system.
+ * The choice is applied to <html> at once and kept in a cookie, which the
+ * root layout's inline script reads before the next page is painted, so it
+ * opens in it without a flash. Flipping back to whatever the device prefers
+ * clears the cookie instead, so a visitor who never meant to pin a theme goes
+ * on following their system.
  *
  * Both icons are always in the markup and CSS shows the right one, because
  * the server cannot know the device's preference.

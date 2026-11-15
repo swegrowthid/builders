@@ -54,7 +54,13 @@ export async function proxy(request: NextRequest) {
   const asked = request.nextUrl.searchParams.get(LANGUAGE_PARAM) ?? undefined;
   if (isLocale(asked)) request.cookies.set(LANGUAGE_COOKIE, asked);
 
-  let response = NextResponse.next({ request });
+  // Every page lives under app/[lang] and is prerendered once per language, so
+  // the language is chosen here, by rewriting to that copy, rather than by the
+  // page reading the cookie, which would render it per request. The address
+  // the visitor sees does not change. One that already names a language (a
+  // share card's, which Next.js addresses by its route) is left as it is.
+  const target = withLanguage(request);
+  let response = target ? NextResponse.rewrite(target, { request }) : NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -74,7 +80,7 @@ export async function proxy(request: NextRequest) {
       },
       setAll(cookiesToSet) {
         for (const { name, value } of cookiesToSet) request.cookies.set(name, value);
-        response = NextResponse.next({ request });
+        response = target ? NextResponse.rewrite(target, { request }) : NextResponse.next({ request });
         for (const { name, value, options } of cookiesToSet) {
           response.cookies.set(name, value, options);
         }
@@ -95,6 +101,16 @@ export async function proxy(request: NextRequest) {
   }
 
   return response;
+}
+
+/** The language copy of this address, or null when the address already names one. */
+function withLanguage(request: NextRequest): URL | null {
+  const { pathname } = request.nextUrl;
+  if (isLocale(pathname.split("/")[1])) return null;
+  const cookie = request.cookies.get(LANGUAGE_COOKIE)?.value;
+  const url = request.nextUrl.clone();
+  url.pathname = `/${isLocale(cookie) ? cookie : "en"}${pathname === "/" ? "" : pathname}`;
+  return url;
 }
 
 /** The address the browser used, with the invoking address as a last resort. */
@@ -123,6 +139,7 @@ function hasSessionCookie(request: NextRequest): boolean {
 }
 
 export const config = {
-  // Everything except static assets and the image optimiser.
-  matcher: ["/((?!_next/static|_next/image|favicon.svg|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // Everything except static assets, the image optimiser, and the two files
+  // app/robots.ts and app/sitemap.ts answer, which sit outside app/[lang].
+  matcher: ["/((?!_next/static|_next/image|robots\\.txt$|sitemap\\.xml$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

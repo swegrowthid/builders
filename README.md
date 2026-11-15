@@ -133,8 +133,8 @@ site does not have redirects to the other (`next.config.ts`).
 
 | Route | What it is |
 | --- | --- |
-| `/` | The directory. **builders:** every active product, with "looking for help" as a filter. **oss:** repositories taking contributors, with signals (`?badge=`), source (`?scope=`), language (`?facet=`) and pull request activity (`?pr=`). Search with `?q=` on both |
-| `/activity` | **builders:** what members' products did — listed, a new stage, an update, a role opened or filled — one card per product per day, with reactions. **oss:** members' pull requests and work on their own repositories, from GitHub, with reactions |
+| `/` | The activity feed. **builders:** what members' products did — listed, a new stage, an update, a role opened or filled — one card per product per day, with reactions; filter by kind of news with `?feed=` and page by card with `?page=`. **oss:** members' pull requests and work on their own repositories, from GitHub, with reactions |
+| `/directory` | The directory. **builders:** every active product, with "looking for help" as a filter. **oss:** repositories taking contributors, with signals (`?badge=`), source (`?scope=`), language (`?facet=`) and pull request activity (`?pr=`). Search with `?q=` on both |
 | `/projects/<slug>` | builders: one product — the story, what it is doing now, the help it wants, its journey. A GitHub repository links to the oss site |
 | `/new` | builders: list a product. One field: the link. Its page supplies the name, description and icon; everything else can be added later |
 | `/inbox` | builders: applications, proposals, and notices such as a reaction |
@@ -284,14 +284,25 @@ The policies have their own suite, which needs a scratch PostgreSQL 16:
 
 ```bash
 createdb builders_test
-psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/local/auth-shim.sql
-for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f "$f"; done
-psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/tests/policies.sql
+( set -e  # stop at the first failure without closing your shell
+  psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/local/auth-shim.sql
+  for f in supabase/migrations/*.sql; do
+    echo "== $f"
+    psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f "$f"
+  done
+  psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/tests/policies.sql
+)
 ```
 
 `supabase/local/auth-shim.sql` is the smallest slice of Supabase's `auth` schema
 the migrations touch, so a plain PostgreSQL can run them. It is for development
-only — never run it against a hosted project.
+only — never run it against a hosted project. It also stands in for
+`cron.schedule`: `pg_cron` and `pg_net` exist only on Supabase, so the migration
+that creates them skips them on a plain PostgreSQL, and a scheduled job there
+does nothing.
+
+CI runs these same steps against a `postgres:16` service
+(`.github/workflows/ci.yml`), so the run needs no Supabase extensions.
 
 ## Deployment
 

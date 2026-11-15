@@ -55,7 +55,7 @@ const nextConfig: NextConfig = {
             // Its "add a project" is suggesting a repo.
             { source: "/submit", destination: "/recommend", permanent: false },
             // Browsers ask for these by name, whatever the page links; the
-            // open source site's are the pull request mark (app/layout.tsx).
+            // open source site's are the pull request mark (app/[lang]/layout.tsx).
             { source: "/favicon.ico", destination: "/oss-favicon.ico", permanent: false },
             { source: "/apple-touch-icon.png", destination: "/oss-apple-touch-icon.png", permanent: false },
           ]

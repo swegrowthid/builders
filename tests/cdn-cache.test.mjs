@@ -16,9 +16,9 @@ test("without a Supabase address there is no session cookie to key on", () => {
   for (const url of [undefined, "", "not a url"]) assert.deepEqual(sessionCookieNames(url), []);
 });
 
-test("a guest's copy is keyed by the query, language, theme and session", () => {
+test("a guest's copy is keyed by the query, language and session", () => {
   assert.equal(
     guestVary(["sb-x-auth-token", "sb-x-auth-token.0"]),
-    "query, cookie=ahsan-language|ahsan-theme|sb-x-auth-token|sb-x-auth-token.0",
+    "query, cookie=ahsan-language|sb-x-auth-token|sb-x-auth-token.0",
   );
 });

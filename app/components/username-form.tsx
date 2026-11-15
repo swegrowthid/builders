@@ -25,7 +25,9 @@ export function UsernameForm({ username, suggestion }: { username: string; sugge
   return (
     <form className="create-form username-form" action={formAction} id="profile-url">
       <fieldset className="step tone-account">
-        <legend>{tx("URL profil", "Profile URL")}</legend>
+        <legend>
+          <span className="step-number">2</span> {tx("URL profil", "Profile URL")}
+        </legend>
         <p className="step-intro">
           {tx(
             "Alamat profilmu. Pilih sendiri, misalnya samakan dengan handle GitHub. Huruf kecil, angka dan tanda hubung.",

@@ -27,8 +27,14 @@ export type RepoSignal = {
   last_error: string | null;
 };
 
-/** How many repositories go into one request. */
-export const BATCH_SIZE = 40;
+/**
+ * How many repositories go into one request. GitHub stops a GraphQL query at
+ * about ten seconds and answers 502; with each repository asking for its last
+ * 100 commits and a search of 100 pull requests, 40 — and 20 — went past that
+ * every time, so most of the catalogue kept its numbers from the day it was
+ * listed. Ten took 6–10 s; a batch that still fails is split (see index.ts).
+ */
+export const BATCH_SIZE = 10;
 
 const REPO_KEY = /^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/;
 
