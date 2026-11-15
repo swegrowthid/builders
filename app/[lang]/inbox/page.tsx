@@ -17,7 +17,7 @@ import {
 import { localizeRoleLabel, roleLabel } from "../../lib/roles";
 import { currentViewer } from "../../lib/session";
 import { signInPath } from "../../lib/urls";
-import { SubmitButton } from "../../components/submit-button";
+import { ConfirmSubmitButton, SubmitButton } from "../../components/submit-button";
 import { currentLocale } from "../../lib/locale-server";
 import { tx, type Locale } from "../../lib/locale";
 
@@ -89,7 +89,10 @@ export default async function InboxPage() {
               {notices.map((notice) => (
                 <li key={notice.id} className={notice.seen ? "" : "is-new"}>
                   <NoticeLine notice={notice} locale={locale} />
-                  <small><RelativeTime value={notice.createdAt} locale={locale} /></small>
+                  <small>
+                    {notice.seen ? null : <span className="notice-new">{tx(locale, "Baru", "New")} · </span>}
+                    <RelativeTime value={notice.createdAt} locale={locale} />
+                  </small>
                 </li>
               ))}
             </ul>
@@ -135,7 +138,7 @@ export default async function InboxPage() {
 
           {incoming.length === 0 ? (
             <p className="muted">
-              {tx(locale, "Belum ada yang mendaftar untuk membantu. Proyek yang menjelaskan kebutuhan bantuannya dengan jelas lebih mudah menemukan kolaborator—buka peran dari halaman proyekmu.", "Nobody has applied to help yet. Projects that clearly name the help they need are much more likely to find collaborators—open one from your project page.")}
+              {tx(locale, "Belum ada pengajuan. Proyek dengan peran yang jelas lebih cepat menemukan kontributor—buka peran dari halaman proyekmu.", "No applications yet. Projects with clearly named roles find contributors sooner—open one from your project page.")}
             </p>
           ) : (
             <ul className="application-list">
@@ -149,7 +152,15 @@ export default async function InboxPage() {
                     <SubmitButton name="decision" value="terima" pendingLabel={tx(locale, "Mohon tunggu…", "Please wait…")}>
                       {tx(locale, "Terima", "Accept")}
                     </SubmitButton>
-                    <SubmitButton className="quiet" name="decision" value="tolak">{tx(locale, "Tolak", "Decline")}</SubmitButton>
+                    <ConfirmSubmitButton
+                      className="quiet"
+                      name="decision"
+                      value="tolak"
+                      confirmLabel={tx(locale, "Yakin tolak?", "Decline for sure?")}
+                      pendingLabel={tx(locale, "Mohon tunggu…", "Please wait…")}
+                    >
+                      {tx(locale, "Tolak", "Decline")}
+                    </ConfirmSubmitButton>
                   </form>
                 </li>
               ))}
@@ -165,7 +176,7 @@ export default async function InboxPage() {
           {mine.length === 0 ? (
             <p className="muted">
               {tx(locale, "Kamu belum bergabung ke proyek apa pun.", "You have not joined anything yet.")} {" "}
-              <Link href="/directory?track=role">{tx(locale, "Lihat proyek yang membutuhkan bantuan", "See projects that need a hand")}</Link>.
+              <Link href="/directory?track=role">{tx(locale, "Cari proyek untuk dikontribusi", "Find a project to contribute to")}</Link>.
             </p>
           ) : (
             <ul className="application-list">

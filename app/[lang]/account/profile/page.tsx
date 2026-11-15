@@ -96,10 +96,10 @@ export default async function EditProfilePage({
             the handle above is offered as the profile URL below. */}
         <UsernameForm username={viewer.username} suggestion={usernameSuggestion} />
 
-        {/* Second: every repo listed here becomes a badge on that repo's row. */}
+        {/* Third: every repo listed here becomes a badge on that repo's row. */}
         <section id="open-source" className="oss-editor tone-done" aria-labelledby="oss-editor-title">
           <h2 id="oss-editor-title" className="is-step">
-            <span className="step-number">2</span> {tx(locale, "Kontribusi open source", "Open source contributions")}
+            <span className="step-number">3</span> {tx(locale, "Kontribusi open source", "Open source contributions")}
           </h2>
           <p>
             {tx(

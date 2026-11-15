@@ -10,7 +10,7 @@ export function HiddenRepos({ hidden, shown, locale }: { hidden: string[]; shown
   const visible = shown.filter((repo) => !hidden.some((pattern) => pattern === repo || pattern === `${repo.split("/")[0]}/*`));
   return (
     <section className="gh-hidden" aria-labelledby="gh-hidden-title">
-      <h3 id="gh-hidden-title">{tx(locale, "Repo yang disembunyikan", "Hidden repos")}</h3>
+      <h2 id="gh-hidden-title">{tx(locale, "Repo yang disembunyikan", "Hidden repos")}</h2>
       <p className="hint">
         {tx(
           locale,
